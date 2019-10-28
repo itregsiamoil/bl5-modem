@@ -1,85 +1,5 @@
-//******************************************************************************
-// Definitions
-//******************************************************************************
-#define BLE_1M_PHY                    		1
-#define BLE_CODED_PHY                 		4
-#define BLE_NORMAL_SCANNING           		0
-#define BLE_EXTENDED_SCANNING         		1
-#define ENABLE_HIGH_BANDWIDTH_KEY_ID      	214    // CFG ID 214
-#define USE_STRINT_IN_EVENTS_KEY_ID         213    // CFG ID 213
-#define USE_STRING_IN_EVENTS                1      // 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
-#define BLE_ENABLE_HIGH_BANDWIDTH         	1      // 0: medium bandwidth 1: high bandwidth
-#define command_mode 						0
-#define cable_mode 							1
-#define TRANSMIT_POWER						8 //-40, -20, -16, -12, -8, -4, 0, 2, 4, 5, 6, 7, and 8 dBm.
-#define device_addr_overall					10
-#define time_to_scan 						0 //-unlimited
-#define scan_interval						500	
-#define scan_window							400
-#define UART_RX_BUFF						200
-
-//BLE EVENT MSG IDs
-#define BLE_EVBLEMSGID_CONNECT                         	 0 // nCtx = connection handle
-#define BLE_EVBLEMSGID_DISCONNECT                      	 1 // nCtx = connection handle
-#define BLE_EVBLEMSGID_IMMEDIATE_ALERT_SERVICE_ALERT   	 2 // nCtx = alert level
-#define BLE_EVBLEMSGID_LINKLOSS_SERVICE_ALERT          	 3 // nCtx = alert level
-#define BLE_EVBLEMSGID_SERVICE_ERROR                   	 4 // nCtx = resultcode
-#define BLE_EVBLEMSGID_HTS_INDICATION_STATE            	 5 // nCtx = new indication state 0=off, 1=on
-#define BLE_EVBLEMSGID_HTS_INDICATION_CNF              	 6 // nCtx = not used
-#define BLE_EVBLEMSGID_BPS_INDICATION_STATE            	 7 // nCtx = new indication state 0=off, 1=on
-#define BLE_EVBLEMSGID_BPS_INDICATION_CNF              	 8 // nCtx = not used
-#define BLE_EVBLEMSGID_DISPLAY_PASSKEY                 	 9 // nCtx = passcode to display
-#define BLE_EVBLEMSGID_NEW_BOND                        	10 // nCtx = connection handle
-#define BLE_EVBLEMSGID_AUTH_KEY_REQUEST                	11 // nCtx = 1 for passkey, 2 for 16 byte OOB data
-#define BLE_EVBLEMSGID_HRS_NOTIFICATION_STATE          	12 // nCtx = new notification state 0=off, 1=on
-#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE        		14 // nCtx = connection handle
-#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE_FAIL   		15 // nCtx = connection handle
-#define BLE_EVBLEMSGID_CONN_TO_BONDED_MASTER    		16 // nCtx = connection handle
-#define BLE_EVBLEMSGID_UPDATED_BOND             		17 // nCtx = connection handle
-#define BLE_EVBLEMSGID_ENCRYPTED                		18 // nCtx = connection handle
-#define BLE_EVBLEMSGID_POWER_FAILURE_WARNING    		19 // nCtx = current supply voltage
-#define BLE_EVBLEMSGID_UNENCRYPTED              		20 // nCtx = connection handle
-#define BLE_EVBLEMSGID_DEVICENAME_WRITE         		21 // nCtx = connection handle
-
-// Hardcoded GATT attributes of remote BL654 running $autorun$.dle.peripheral.sb
-#define REMOTE_RX_VALUE_HANDLE          21
-#define REMOTE_TX_VALUE_HANDLE          23
-#define REMOTE_MODEMIN_VALUE_HANDLE     18
-#define REMOTE_MODEMOUT_VALUE_HANDLE    16
-#define REMOTE_TX_CCCD_HANDLE           19
-#define REMOTE_MODEMOUT_CCCD_HANDLE     24
-
-//******************************************************************************
-// Global Variable Declarations
-//******************************************************************************
-dim ConnectionID                    //Ble Connection Handle
-dim Mode : Mode = 0                 //Current program mode: 0 = connecting, 1 = connected, find modem in characteristic, 2 = find modem out characteristic, 3 = find RX characteristic, 4 = find TX characteristic, 5 = find modem out descriptor, 6 = find TX descriptor, 7 = enable modem out notIFications, 8 = enable TX, 9 = enable modem in status
-dim MIHandle:MIHandle = REMOTE_MODEMIN_VALUE_HANDLE//Modem In handle (IF one exists)
-dim MOHandle:MOHandle = REMOTE_MODEMOUT_VALUE_HANDLE//Modem Out handle (IF one exists)
-dim RXHandle:RxHandle = REMOTE_RX_VALUE_HANDLE//RX handle
-dim TXHandle:TXHandle = REMOTE_TX_VALUE_HANDLE//TX handle
-dim MOCCCDHandle:MOCCCDHandle = REMOTE_MODEMOUT_CCCD_HANDLE//Modem Out CCCD handle (IF one exists)
-dim TXCCCDHandle:TXCCCDHandle = REMOTE_TX_CCCD_HANDLE//TX CCCD handle (IF one exists)
-dim Val$                            //Value to write and read from characteristics
-dim BufferState : BufferState = 0   //Buffer state
-dim BufferFull : BufferFull = 0     //Buffer full
-dim urx$ : urx$ = ""                //UART read buffer
-dim RecBuf$ : RecBuf$ = ""          //VSP read buffer
-dim nBleMaxPacketLength:nBleMaxPacketLength = 27//Default maximum packet length on BL654 // The default maximum packet length on BL654 is 27
-dim nAttributeMTU:nAttributeMTU = 23//Default Maximum Transmission Unit on BL654 // The default ATT_MTU on the BL654 is 23
-dim nAttributeLength:nAttributeLength = 20//Default Attribute Data Length on BL654s // The default attribute length on the BL654 is 20
-dim CurrentState : CurrentState = command_mode
-dim rc,ad$,dta$
-dim dev_cnt:dev_cnt=0
-dim msg_cnt[device_addr_overall]
-dim addr_table$[device_addr_overall]
-
-//Commands
-#define ScanDev				11
-#define StopScanDev			22
-#define ConnToDev			33 //+ № из таблицы адресов
-#define DisConn				44 //+ № из таблицы адресов??
-//#define PhySet				55
+#include "modem.setup.sblib"
+#include "modem.command.sblib"
 
 //==============================================================================
 // This handler is called when there is an advert report waiting to be read
@@ -109,72 +29,47 @@ function HandlerAdvRpt() as integer
 	endwhile
 endfunc 1
 
-//-------------------------------------------------------------------------------
-// Function for parsing commands
-//-------------------------------------------------------------------------------
-function CommandParser(CmdNum)
-	select CmdNum
-		case ScanDev
-			rc = BleScanStart(time_to_scan, 0)
-			if rc == 0 then
-				print "\nSuccessfully started scanning over CODED PHY\n"
-			else 
-				print "\nFailed to scan with error code ";integer.h' rc 
-			endif
-		case StopScanDev
-			rc = BleScanStop() 
-			if SysInfo(2016) == 0 THEN 
-				PRINT "Scan stopped\n"
-			endif
-			dim i
-			print dev_cnt;" device in table: \n"
-			for i=0 to dev_cnt-1
-				print i;"-"; strhexize$(addr_table$[i]);"\n"
-				msg_cnt[i]=1
-			next
-		case ConnToDev
-			dim input_addr$:input_addr$=right$(urx$,2)
-			dim ad_from_table:ad_from_table=strvaldec(input_addr$)
-			rc = BleConnect(addr_table$[ad_from_table], 5000, 7500, 150000, 5000000)
-			if rc == 0 then
-				dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
-				print "\nConnecting to ";conn_addr$;" ...\n"
-				CurrentState = cable_mode
+//==============================================================================
+// Send data through BLE
+//==============================================================================
+FUNCTION SendUartToBleData()
+	DIM uLen, DataToSend$
+	   IF BufferState == 0 then			
+		uLen = UartReadN(urx$, nAttributeLength) //Read data that has arrived through via the UART			
+		DataToSend$ = Left$(urx$, nAttributeLength) // Ensure that we only read nAttribureLength
+		IF uLen > 0 then
+			rc = BLEGATTCWRITECMD(ConnectionID, RXHandle, DataToSend$)
+			if rc!= 0 then
+				BufferState = 1
+				//print "Send buffer full! rc=";rc
 			else
-				print "\nFailed to connect to device ";input_addr$;" with error code ";integer.h' rc
+				//print "Shift ";urx$;" len ";uLen
+				StrShiftLeft(urx$,uLen)
 			endif
-		case DisConn
-			CurrentState = command_mode
-			rc = BleDisconnect(ConnectionID)
-			if rc==0 then : print "Conncection: ";ConnectionID; " closed"
-			else : print "Can`t close conncection: ";ConnectionID; " , reason: ";integer.h'rc
-			endif
-		case else
-			exitfunc 1
-	endselect
-endfunc 0			
+		ENDIF
+	ENDIF
+ENDFUNC 1
 
+//------------------------------------------------------------------------------
+// EVNOTIFYBUF - Buffer fro BleGattcWriteCmd has been emptied
+//------------------------------------------------------------------------------
+FUNCTION HndlrNtfyBuf()
+    IF BufferState == 1 THEN
+        BufferState = 0
+        rc = SendUartToBleData()
+    ELSE
+        //Check for UART data
+        rc = SendUartToBleData()
+    ENDIF
+ENDFUNC 1
+	
 //==============================================================================
 // This handler is called when data recieved through UART
 //==============================================================================
 FUNCTION HndlrUartRx() 
 	select CurrentState
-		case cable_mode
-			DIM uLen, DataToSend$
-		    IF BufferState == 0 then			
-				uLen = UartReadN(urx$, nAttributeLength) //Read data that has arrived through via the UART			
-				DataToSend$ = Left$(urx$, nAttributeLength) // Ensure that we only read nAttribureLength
-				IF uLen > 0 then
-					rc = BLEGATTCWRITECMD(ConnectionID, RXHandle, DataToSend$)
-					if rc!= 0 then
-						BufferState = 1
-						print "Send buffer full! rc=";rc
-					else
-						print "Shift ";urx$;" len ";uLen
-						StrShiftLeft(urx$,uLen)
-					endif
-				ENDIF
-			ENDIF
+		case ble_mode
+			rc=SendUartToBleData()
 		case command_mode
 			dim rcv_bytes
 			rcv_bytes=UartReadMatch(urx$,0x0D)
@@ -191,7 +86,7 @@ FUNCTION HndlrUartRx()
 		case else
 	endselect
 ENDFUNC 1
-
+		
 //-------------------------------------------------------------------------------
 // This function is used to configure the BL654 to use high bandwidth
 //-------------------------------------------------------------------------------
@@ -235,22 +130,22 @@ function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
 
-//------------------------------------------------------------------------------
-// EVATTRNOTIFY - Received BLE notification
-//------------------------------------------------------------------------------
-FUNCTION HndlrAttrNotify()
+// //------------------------------------------------------------------------------
+// // EVATTRNOTIFY - Received BLE notification
+// //------------------------------------------------------------------------------
+// FUNCTION HndlrAttrNotify()
 
-    DIM nCtx, Hndl, Data$, discard, UartSent, arc
-    arc = BLEGATTCNOTIFYREAD(nCtx, Hndl, Data$, discard)
-    while (arc == 0)
-        IF (Hndl == TXHandle) then
-            PRINT Data$
-        ENDIF
-        Data$ = ""
-        arc = BLEGATTCNOTIFYREAD(nCtx, Hndl, Data$, discard)
-    endwhile
+    // DIM nCtx, Hndl, Data$, discard, UartSent, arc
+    // arc = BLEGATTCNOTIFYREAD(nCtx, Hndl, Data$, discard)
+    // while (arc == 0)
+        // IF (Hndl == TXHandle) then
+            // PRINT Data$
+        // ENDIF
+        // Data$ = ""
+        // arc = BLEGATTCNOTIFYREAD(nCtx, Hndl, Data$, discard)
+    // endwhile
 
-ENDFUNC 1
+// ENDFUNC 1
 
 //------------------------------------------------------------------------------
 // EVATTRNOTIFYEX - Received BLE notification
@@ -258,8 +153,8 @@ ENDFUNC 1
 FUNCTION HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL nType AS INTEGER, BYVAL nLength AS INTEGER,BYVAL data$ AS STRING)
 
     IF (hAttr == TXHandle) then
-        // Just print data that we got
-        PRINT hConn;":";hAttr;":";nType;":";nLength;":";Data$
+        // Just print data that we got 
+        PRINT hConn;":";hAttr;":";nType;":";nLength;":";Data$;":"
     ENDIF
     Data$ = ""
 
@@ -339,30 +234,17 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 	endselect
 endfunc 1
 
-//------------------------------------------------------------------------------
-// EVNOTIFYBUF - Buffer fro BleGattcWriteCmd has been emptied
-//------------------------------------------------------------------------------
-FUNCTION HndlrNtfyBuf()
-    IF BufferState == 1 THEN
-        BufferState = 0
-        rc = HndlrUartRx()
-    ELSE
-        //Check for UART data
-        rc = HndlrUartRx()
-    ENDIF
-ENDFUNC 1
-
 //******************************************************************************
 // Equivalent to main() in C
 //******************************************************************************
 dim x
-for x=0 to device_addr_overall-1 : msg_cnt[x]=1 : next
+for x=0 to device_addr_overall-1 : msg_cnt[x]=1 : next //инициализация таблицы сообщений
 // Enable high bandwidth
 rc = BleHighBandwidth()
-if UartInfo(0)==0 then : rc = UartOpen(115200,2000,2000,"CN81H")
-else : UartClose() : rc = UartOpen(115200,2000,2000,"CN81H")
+if UartInfo(0)==0 then : rc = UartOpen(UART_BAUDRATE,U_TX_BUF,U_RX_BUF,"CN81H")
+else : UartClose() : rc = UartOpen(UART_BAUDRATE,U_TX_BUF,U_RX_BUF,"CN81H")
 endif
-rc = BleTxPowerSet(TRANSMIT_POWER) 
+rc = BleTxPowerSet(TRANSMIT_POWER) //установка мощности передатчика
 // Set Scanning PHYs to CODED PHY, enable extended scanning
 rc = BleScanConfig(0,scan_interval)
 rc = BleScanConfig(1,scan_window)
@@ -383,7 +265,7 @@ OnEvent	EVBLE_ADV_REPORT    	call HandlerAdvRpt
 OnEvent	EVBLEMSG            	call HandlerBleMsg
 OnEvent EVATTRWRITE         	CALL HndlrAttrWrite
 OnEvent EVBLE_CONN_TIMEOUT  	CALL HndlrConnTO
-OnEvent EVATTRNOTIFY        	CALL HndlrAttrNotify        // Used if AT+CFG 213=0
+// OnEvent EVATTRNOTIFY        	CALL HndlrAttrNotify        // Used if AT+CFG 213=0
 OnEvent EVATTRNOTIFYEX      	CALL HndlrAttrNotifyEx      // Used if AT+CFG 213=1
 ONEVENT EVNOTIFYBUF       		CALL HndlrNtfyBuf
 // UART event

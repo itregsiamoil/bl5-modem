@@ -1,0 +1,73 @@
+//******************************************************************************
+// Definitions
+//******************************************************************************
+#define BLE_1M_PHY                    		1
+#define BLE_CODED_PHY                 		4
+#define BLE_NORMAL_SCANNING           		0
+#define BLE_EXTENDED_SCANNING         		1
+#define ENABLE_HIGH_BANDWIDTH_KEY_ID      	214    // CFG ID 214
+#define USE_STRINT_IN_EVENTS_KEY_ID         213    // CFG ID 213
+#define USE_STRING_IN_EVENTS                1      // 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
+#define BLE_ENABLE_HIGH_BANDWIDTH         	1      // 0: medium bandwidth 1: high bandwidth
+#define command_mode 						0
+#define ble_mode 							1
+#define TRANSMIT_POWER						8 //-40, -20, -16, -12, -8, -4, 0, 2, 4, 5, 6, 7, and 8 dBm.
+#define device_addr_overall					10
+#define time_to_scan 						0 //-unlimited
+#define scan_interval						500	
+#define scan_window							400
+#define UART_RX_BUFF						200
+#define UART_BAUDRATE 						115200
+#define U_TX_BUF							2048
+#define U_RX_BUF							2048
+
+// Hardcoded GATT attributes of remote BL654 running $autorun$.dle.peripheral.sb
+dim MIHandle:MIHandle = 18//Modem In handle (IF one exists)
+dim MOHandle:MOHandle = 16//Modem Out handle (IF one exists)
+dim RXHandle:RxHandle = 21//RX handle
+dim TXHandle:TXHandle = 23//TX handle
+dim MOCCCDHandle:MOCCCDHandle = 24//Modem Out CCCD handle (IF one exists)
+dim TXCCCDHandle:TXCCCDHandle = 19//TX CCCD handle (IF one exists)
+
+dim nBleMaxPacketLength:nBleMaxPacketLength = 27//Default maximum packet length on BL654 // The default maximum packet length on BL654 is 27
+dim nAttributeMTU:nAttributeMTU = 23//Default Maximum Transmission Unit on BL654 // The default ATT_MTU on the BL654 is 23
+dim nAttributeLength:nAttributeLength = 20//Default Attribute Data Length on BL654s // The default attribute length on the BL654 is 20
+
+//******************************************************************************
+// Global Variable Declarations
+//******************************************************************************
+dim ConnectionID                    //Ble Connection Handle
+dim Mode : Mode = 0                 //Current program mode: 0 = connecting, 1 = connected, find modem in characteristic, 2 = find modem out characteristic, 3 = find RX characteristic, 4 = find TX characteristic, 5 = find modem out descriptor, 6 = find TX descriptor, 7 = enable modem out notIFications, 8 = enable TX, 9 = enable modem in status
+dim Val$                            //Value to write and read from characteristics
+dim BufferState : BufferState = 0   //Buffer state
+dim BufferFull : BufferFull = 0     //Buffer full
+dim urx$ : urx$ = ""                //UART read buffer
+dim RecBuf$ : RecBuf$ = ""          //VSP read buffer
+dim CurrentState : CurrentState = command_mode
+dim rc,ad$,dta$
+dim dev_cnt:dev_cnt=0
+dim msg_cnt[device_addr_overall]
+dim addr_table$[device_addr_overall]
+
+//BLE EVENT MSG IDs
+#define BLE_EVBLEMSGID_CONNECT                         	 0 // nCtx = connection handle
+#define BLE_EVBLEMSGID_DISCONNECT                      	 1 // nCtx = connection handle
+#define BLE_EVBLEMSGID_IMMEDIATE_ALERT_SERVICE_ALERT   	 2 // nCtx = alert level
+#define BLE_EVBLEMSGID_LINKLOSS_SERVICE_ALERT          	 3 // nCtx = alert level
+#define BLE_EVBLEMSGID_SERVICE_ERROR                   	 4 // nCtx = resultcode
+#define BLE_EVBLEMSGID_HTS_INDICATION_STATE            	 5 // nCtx = new indication state 0=off, 1=on
+#define BLE_EVBLEMSGID_HTS_INDICATION_CNF              	 6 // nCtx = not used
+#define BLE_EVBLEMSGID_BPS_INDICATION_STATE            	 7 // nCtx = new indication state 0=off, 1=on
+#define BLE_EVBLEMSGID_BPS_INDICATION_CNF              	 8 // nCtx = not used
+#define BLE_EVBLEMSGID_DISPLAY_PASSKEY                 	 9 // nCtx = passcode to display
+#define BLE_EVBLEMSGID_NEW_BOND                        	10 // nCtx = connection handle
+#define BLE_EVBLEMSGID_AUTH_KEY_REQUEST                	11 // nCtx = 1 for passkey, 2 for 16 byte OOB data
+#define BLE_EVBLEMSGID_HRS_NOTIFICATION_STATE          	12 // nCtx = new notification state 0=off, 1=on
+#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE        		14 // nCtx = connection handle
+#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE_FAIL   		15 // nCtx = connection handle
+#define BLE_EVBLEMSGID_CONN_TO_BONDED_MASTER    		16 // nCtx = connection handle
+#define BLE_EVBLEMSGID_UPDATED_BOND             		17 // nCtx = connection handle
+#define BLE_EVBLEMSGID_ENCRYPTED                		18 // nCtx = connection handle
+#define BLE_EVBLEMSGID_POWER_FAILURE_WARNING    		19 // nCtx = current supply voltage
+#define BLE_EVBLEMSGID_UNENCRYPTED              		20 // nCtx = connection handle
+#define BLE_EVBLEMSGID_DEVICENAME_WRITE         		21 // nCtx = connection handle

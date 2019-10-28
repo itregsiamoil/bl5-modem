@@ -1,0 +1,53 @@
+//#include "modem.setup.sblib"
+
+//Commands
+#define ScanDev				11
+#define StopScanDev			22
+#define ConnToDev			33 //+ № из таблицы адресов
+#define DisConn				44 //+ № из таблицы адресов??
+//#define PhySet			55
+
+//-------------------------------------------------------------------------------
+// Function for parsing commands
+//-------------------------------------------------------------------------------
+function CommandParser(CmdNum)
+	select CmdNum
+		case ScanDev
+			rc = BleScanStart(time_to_scan, 0)
+			if rc == 0 then
+				print "\nSuccessfully started scanning over CODED PHY\n"
+			else 
+				print "\nFailed to scan with error code ";integer.h' rc 
+			endif
+		case StopScanDev
+			rc = BleScanStop() 
+			if SysInfo(2016) == 0 THEN 
+				PRINT "Scan stopped\n"
+			endif
+			dim i
+			print dev_cnt;" device in table: \n"
+			for i=0 to dev_cnt-1
+				print i;"-"; strhexize$(addr_table$[i]);"\n"
+				msg_cnt[i]=1
+			next
+		case ConnToDev
+			dim input_addr$:input_addr$=right$(urx$,2)
+			dim ad_from_table:ad_from_table=strvaldec(input_addr$)
+			rc = BleConnect(addr_table$[ad_from_table], 5000, 7500, 150000, 5000000)
+			if rc == 0 then
+				dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
+				print "\nConnecting to ";conn_addr$;" ...\n"
+				CurrentState = ble_mode
+			else
+				print "\nFailed to connect to device ";input_addr$;" with error code ";integer.h' rc
+			endif
+		case DisConn
+			CurrentState = command_mode
+			rc = BleDisconnect(ConnectionID)
+			if rc==0 then : print "Conncection: ";ConnectionID; " closed"
+			else : print "Can`t close conncection: ";ConnectionID; " , reason: ";integer.h'rc
+			endif
+		case else
+			exitfunc 1
+	endselect
+endfunc 0	
