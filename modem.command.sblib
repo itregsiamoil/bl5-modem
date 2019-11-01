@@ -37,12 +37,10 @@ function CommandParser(CmdNum)
 			if rc == 0 then
 				dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
 				print "\nConnecting to ";conn_addr$;" ...\n"
-				CurrentState = ble_mode
 			else
 				print "\nFailed to connect to device ";input_addr$;" with error code ";integer.h' rc
 			endif
 		case DisConn
-			CurrentState = command_mode
 			rc = BleDisconnect(ConnectionID)
 			if rc==0 then : print "Conncection: ";ConnectionID; " closed"
 			else : print "Can`t close conncection: ";ConnectionID; " , reason: ";integer.h'rc

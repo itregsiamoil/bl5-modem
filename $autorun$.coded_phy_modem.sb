@@ -32,23 +32,26 @@ endfunc 1
 //==============================================================================
 // Send data through BLE
 //==============================================================================
-FUNCTION SendUartToBleData()
-	DIM uLen, DataToSend$
-	   IF BufferState == 0 then			
-		uLen = UartReadN(urx$, nAttributeLength) //Read data that has arrived through via the UART			
-		DataToSend$ = Left$(urx$, nAttributeLength) // Ensure that we only read nAttribureLength
-		IF uLen > 0 then
-			rc = BLEGATTCWRITECMD(ConnectionID, RXHandle, DataToSend$)
-			if rc!= 0 then
-				BufferState = 1
-				//print "Send buffer full! rc=";rc
-			else
-				//print "Shift ";urx$;" len ";uLen
-				StrShiftLeft(urx$,uLen)
-			endif
+FUNCTION SendUartToBleDevice(ConnIdDir,Buf$)
+	DIM DataToSend$
+	RecBuf$=Buf$
+	do 
+		IF BufferState == 0 then				
+			DataToSend$ = Left$(RecBuf$, nAttributeLength) // Ensure that we only read nAttribureLength
+			rc = BLEGATTCWRITECMD(ConnIdDir, RXHandle, DataToSend$)
+			select rc
+				case 0
+					StrShiftLeft(RecBuf$,nAttributeLength)
+				case 24614
+					print "ConnId not correct, rc=";integer.h'rc
+					exitfunc -1
+				case else
+					BufferState = 1
+					print "Ble send error! rc=";integer.h'rc
+			endselect
 		ENDIF
-	ENDIF
-ENDFUNC 1
+	until strlen(RecBuf$)==0
+ENDFUNC 0
 
 //------------------------------------------------------------------------------
 // EVNOTIFYBUF - Buffer fro BleGattcWriteCmd has been emptied
@@ -56,35 +59,48 @@ ENDFUNC 1
 FUNCTION HndlrNtfyBuf()
     IF BufferState == 1 THEN
         BufferState = 0
-        rc = SendUartToBleData()
-    ELSE
-        //Check for UART data
-        rc = SendUartToBleData()
+        // rc = SendUartToBleDevice()
+    // ELSE
+        // //Check for UART data
+        // rc = SendUartToBleDevice()
     ENDIF
 ENDFUNC 1
 	
 //==============================================================================
 // This handler is called when data recieved through UART
 //==============================================================================
+dim HeaderSize:HeaderSize=3
+#define ToModem		101
+#define FromModem	102
+#define ToDevice	201
+#define FromDevice	202
+dim Separator$:Separator$="-"
 FUNCTION HndlrUartRx() 
-	select CurrentState
-		case ble_mode
-			rc=SendUartToBleData()
-		case command_mode
-			dim rcv_bytes
-			rcv_bytes=UartReadMatch(urx$,0x0D)
-			select rcv_bytes
-				case 0		
-				case else
-					dim cmnd$
-					urx$=left$(urx$,rcv_bytes-1)
-					cmnd$=left$(urx$,2)
-					rc=CommandParser(strvaldec(cmnd$))
-					if rc!=0 then : PRINT "Bytes_rcv=";rcv_bytes;" ECHO=";strhexize$(urx$);"\n" : endif
-					urx$=""
-			endselect
-		case else
-	endselect
+	dim uLen,SendTo$
+	uLen = UartReadMatch(urx$, 0x0D) //Read data that has arrived through via the UART
+	if uLen>0 then
+		SendTo$ = Left$(urx$, HeaderSize) //выделение заголовка
+		select strvaldec(SendTo$) //обработка заголовка
+			case ToModem
+				StrShiftLeft(urx$,HeaderSize) //удаление из буфера заголовка
+				dim Cmnd$
+				urx$=left$(urx$,uLen-1) //удаление из буфера 0x0D
+				cmnd$=left$(urx$,2)
+				rc=CommandParser(strvaldec(Cmnd$))
+				if rc!=0 then : PRINT "Bytes_rcv=";uLen;" ECHO=";strhexize$(urx$);"\n" : endif
+			case ToDevice
+				dim SepPos,ConnId$
+				StrShiftLeft(urx$,HeaderSize) //удаление из буфера заголовка
+				urx$=left$(urx$,uLen-1) //удаление из буфера 0x0D
+				SepPos=StrPos(urx$,Separator$,0)
+				ConnId$=Left$(urx$,SepPos)
+				StrShiftLeft(urx$,SepPos+1)
+				rc=SendUartToBleDevice(strvaldec(ConnId$),urx$)
+			case else
+				print "Unknown header\n"
+		endselect
+		urx$=""
+	endif
 ENDFUNC 1
 		
 //-------------------------------------------------------------------------------
@@ -130,34 +146,15 @@ function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
 
-// //------------------------------------------------------------------------------
-// // EVATTRNOTIFY - Received BLE notification
-// //------------------------------------------------------------------------------
-// FUNCTION HndlrAttrNotify()
-
-    // DIM nCtx, Hndl, Data$, discard, UartSent, arc
-    // arc = BLEGATTCNOTIFYREAD(nCtx, Hndl, Data$, discard)
-    // while (arc == 0)
-        // IF (Hndl == TXHandle) then
-            // PRINT Data$
-        // ENDIF
-        // Data$ = ""
-        // arc = BLEGATTCNOTIFYREAD(nCtx, Hndl, Data$, discard)
-    // endwhile
-
-// ENDFUNC 1
-
 //------------------------------------------------------------------------------
 // EVATTRNOTIFYEX - Received BLE notification
 //------------------------------------------------------------------------------
 FUNCTION HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL nType AS INTEGER, BYVAL nLength AS INTEGER,BYVAL data$ AS STRING)
-
     IF (hAttr == TXHandle) then
         // Just print data that we got 
-        PRINT hConn;":";hAttr;":";nType;":";nLength;":";Data$;":"
+        PRINT hConn;"-";nLength;"-";Data$;"\n"
     ENDIF
     Data$ = ""
-
 ENDFUNC 1
 
 //------------------------------------------------------------------------------
@@ -225,7 +222,6 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 			Val$ = "\01\00"
 			rc = BLEGATTCWRITE(ConnectionID, MOCCCDHandle, Val$)
 		case BLE_EVBLEMSGID_DISCONNECT
-			CurrentState = command_mode
 			print "Disconnected!\n"
 			BleGattcClose()
 		case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
@@ -233,6 +229,10 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 		case else
 	endselect
 endfunc 1
+
+FUNCTION HndlrDiscon(BYVAL hConn AS INTEGER, BYVAL nRsn AS INTEGER) AS INTEGER 
+	PRINT "\nConnection ";hConn;" Closed: 0x";nRsn 
+ENDFUNC 0
 
 //******************************************************************************
 // Equivalent to main() in C
@@ -265,9 +265,9 @@ OnEvent	EVBLE_ADV_REPORT    	call HandlerAdvRpt
 OnEvent	EVBLEMSG            	call HandlerBleMsg
 OnEvent EVATTRWRITE         	CALL HndlrAttrWrite
 OnEvent EVBLE_CONN_TIMEOUT  	CALL HndlrConnTO
-// OnEvent EVATTRNOTIFY        	CALL HndlrAttrNotify        // Used if AT+CFG 213=0
 OnEvent EVATTRNOTIFYEX      	CALL HndlrAttrNotifyEx      // Used if AT+CFG 213=1
-ONEVENT EVNOTIFYBUF       		CALL HndlrNtfyBuf
+// ONEVENT EVNOTIFYBUF       		CALL HndlrNtfyBuf
+ONEVENT EVDISCON 				CALL HndlrDiscon
 // UART event
 OnEvent	EVUARTRX 				call HndlrUartRx
 // BLE PHY

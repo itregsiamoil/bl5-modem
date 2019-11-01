@@ -321,6 +321,10 @@ function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
 
+FUNCTION HndlrDiscon(BYVAL hConn AS INTEGER, BYVAL nRsn AS INTEGER) AS INTEGER 
+	PRINT "\nConnection ";hConn;" Closed: 0x";nRsn 
+ENDFUNC 0
+
 //******************************************************************************
 // Start up code from here -equivalent to main() in a 'C' application
 //******************************************************************************
@@ -344,15 +348,16 @@ rc = BleStartAdverts()
 //Setup event handlers
 //******************************************************************************
 // UART events
-ONEVENT EVUARTRX          CALL HndlrUartRx
+ONEVENT EVUARTRX			CALL HndlrUartRx
 // Generic BLE events
-ONEVENT EVBLEMSG          CALL HndlrBleMsg
-ONEVENT EVCHARVAL         CALL HndlrCharVal           // Used if AT+CFG 213=0
-ONEVENT EVCHARVALUE       CALL HndlrCharValue         // Used if AT+CFG 213=1
-ONEVENT EVNOTIFYBUF       CALL HndlrNtfyBuf
+ONEVENT EVBLEMSG			CALL HndlrBleMsg
+ONEVENT EVCHARVAL			CALL HndlrCharVal           // Used if AT+CFG 213=0
+ONEVENT EVCHARVALUE			CALL HndlrCharValue         // Used if AT+CFG 213=1
+ONEVENT EVNOTIFYBUF			CALL HndlrNtfyBuf
+ONEVENT EVDISCON			CALL HndlrDiscon
 // BLE PHY
-OnEvent EVBLE_PHY_UPDATED CALL HandlerPhyChngd
-OnEvent EVBLE_PHY_REQUEST CALL HandlerPhyReq
+OnEvent EVBLE_PHY_UPDATED	CALL HandlerPhyChngd
+OnEvent EVBLE_PHY_REQUEST	CALL HandlerPhyReq
 
 //******************************************************************************
 //Wait in a lower-power mode for an event to occur
