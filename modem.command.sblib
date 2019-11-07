@@ -1,51 +1,104 @@
 //#include "modem.setup.sblib"
 
 //Commands
-#define ScanDev				11
-#define StopScanDev			22
-#define ConnToDev			33 //+ № из таблицы адресов
-#define DisConn				44 //+ № из таблицы адресов??
-//#define PhySet			55
+#define ScanDev				1
+#define StopScanDev			2
+#define ConnToDev			3 //+ № из таблицы адресов
+#define SendToDev			4 //+ № из таблицы адресов + данные
+#define DisConn				5 //+ № из таблицы адресов
+
+//==============================================================================
+// Parsing command parametr
+//==============================================================================
+function str_to_id()
+	dim input_param$,param,SepPos
+	SepPos=StrPos(urx$,Separator$,0)
+	if (SepPos==-1) then 
+		param=-1
+		print "-Cmnd separator '-' not found\n"
+	else
+		input_param$=Left$(urx$,SepPos)
+		param=strvaldec(input_param$)
+		StrShiftLeft(urx$,SepPos+1)
+		if (param>device_addr_overall-1) then
+			param=-1
+			print "-Id bigger then max: ";integer.d'device_addr_overall;"\n"
+		endif
+	endif
+endfunc param
+
+//==============================================================================
+// Send data through BLE
+//==============================================================================
+FUNCTION SendUartToBleDevice(ConnIdDir)
+	DIM DataToSend$
+	do 
+		IF BufferState == 0 then				
+			DataToSend$ = Left$(urx$, nAttributeLength) // Ensure that we only read nAttribureLength
+			rc = BLEGATTCWRITECMD(ConnIdDir, RXHandle, DataToSend$)
+			select rc
+				case 0
+					StrShiftLeft(urx$,nAttributeLength)
+					//print "-Succs send\n"
+				case 24614
+					print "-Connection Id not correct, rc=";integer.h'rc;"\n"
+					exitfunc 1
+				case else
+					BufferState = 1
+					print "-Ble send error! rc=";integer.h'rc;"\n"
+			endselect
+		ENDIF
+	until strlen(urx$)==0
+ENDFUNC 1
 
 //-------------------------------------------------------------------------------
 // Function for parsing commands
 //-------------------------------------------------------------------------------
-function CommandParser(CmdNum)
+sub CommandParser(CmdNum)
 	select CmdNum
 		case ScanDev
 			rc = BleScanStart(time_to_scan, 0)
 			if rc == 0 then
-				print "\nSuccessfully started scanning over CODED PHY\n"
+				print "-";integer.d'ScanDev;"-Scan started over CODED PHY\n"
 			else 
-				print "\nFailed to scan with error code ";integer.h' rc 
+				print "-";integer.d'ScanDev;"-Scan failed with error: ";integer.h'rc;"\n"
 			endif
 		case StopScanDev
 			rc = BleScanStop() 
 			if SysInfo(2016) == 0 THEN 
-				PRINT "Scan stopped\n"
+				PRINT "-";integer.d'StopScanDev;"-Scan stopped\n"
 			endif
 			dim i
-			print dev_cnt;" device in table: \n"
+			print "-";integer.d'StopScanDev;"-";dev_cnt;" device in table: \n"
 			for i=0 to dev_cnt-1
-				print i;"-"; strhexize$(addr_table$[i]);"\n"
+				print "-";integer.d'StopScanDev;"-";i;"-"; strhexize$(addr_table$[i]);"-";msg_cnt[i];"\n"
 				msg_cnt[i]=1
 			next
 		case ConnToDev
-			dim input_addr$:input_addr$=right$(urx$,2)
-			dim ad_from_table:ad_from_table=strvaldec(input_addr$)
-			rc = BleConnect(addr_table$[ad_from_table], 5000, 7500, 150000, 5000000)
-			if rc == 0 then
-				dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
-				print "\nConnecting to ";conn_addr$;" ...\n"
-			else
-				print "\nFailed to connect to device ";input_addr$;" with error code ";integer.h' rc
+			ad_from_table=str_to_id()
+			if (ad_from_table>-1) then
+				rc = BleConnect(addr_table$[ad_from_table], 5000, 7500, 150000, 5000000)
+				if rc == 0 then
+					dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
+					print "-";integer.d'ConnToDev;"-Connecting to ";conn_addr$;" ...\n"
+				else
+					print "-";integer.d'ConnToDev;"-Unable to connect, error: ";integer.h'rc;"\n"
+				endif
+			endif
+		case SendToDev
+			rc=str_to_id()
+			if (rc>-1) then
+				rc=SendUartToBleDevice(conn_table(rc))
 			endif
 		case DisConn
-			rc = BleDisconnect(ConnectionID)
-			if rc==0 then : print "Conncection: ";ConnectionID; " closed"
-			else : print "Can`t close conncection: ";ConnectionID; " , reason: ";integer.h'rc
+			rc=str_to_id()
+			if (rc>-1) then
+				rc = BleDisconnect(conn_table(rc))
+				if rc==0 then : print "-";integer.d'DisConn;"-Close conncection: ";conn_table(rc); "\n"
+				else : print "-";integer.d'DisConn;"-Unable to close conncection, error: ";integer.h'rc;"\n"
+				endif
 			endif
 		case else
-			exitfunc 1
+			PRINT "-Unknown cmnd. ECHO=";strhexize$(urx$);"\n"
 	endselect
-endfunc 0	
+endsub	

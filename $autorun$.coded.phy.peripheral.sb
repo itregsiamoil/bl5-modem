@@ -50,6 +50,7 @@ dim MIval                           // Modem In value
 dim ConnectionID                    // Holds the connection ID of the VSP client (if one is connected)
 dim RecBuf$ : RecBuf$ = ""          // VSP receive buffer
 dim UARTBlocked : UARTBlocked = 0   // When set to 1 will not read data from the UART
+dim BufferState : BufferState = 0
 dim UartData$                       // Data from the UART waiting to be sent out
 
 
@@ -227,7 +228,7 @@ function HndlrBleMsg(nMsgId, nCtx)
     case BLE_EVBLEMSGID_DISCONNECT
         PRINT "## Disconnected!\n"
         dim Addr$ : Addr$ = ""
-        rc = BleAdvertStart(0, Addr$, 250, 0, 0)
+        rc = BleAdvertStart(6, Addr$, 250, 0, 0)
 
     case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
         ShowConnParms()
@@ -241,26 +242,58 @@ endfunc 1
 // EVUARTRX - Function handler for UART data receive
 //------------------------------------------------------------------------------
 FUNCTION HndlrUartRx()
-
     dim RdLen, DataToSend$
-
-    IF UARTBlocked == 0 THEN
-        RdLen = UARTREADN(UartData$, nAttributeLength)
+    IF BufferState == 0 THEN
+		RdLen = UARTREADN(UartData$,nAttributeLength)
         // Ensure that we only read nAttribureLength
-        DataToSend$ = Left$(UartData$, nAttributeLength)
+        // DataToSend$ = Left$(UartData$, nAttributeLength)
 
-        // If there is data, send it as notifications
+        // // If there is data, send it as notifications
         IF RdLen > 0 THEN
-            rc = BLECHARVALUENOTIFY(TXchar, DataToSend$)
-            IF rc != 0 THEN
-                // We couldn't send, just keep it saved in DataToSend$
-                UARTBlocked = 1
-            ELSE
-                // Shift UartData by the amount that was written
-                StrShiftLeft(UartData$,RdLen)
-            ENDIF
-        ENDIF
+            // rc = BLECHARVALUENOTIFY(TXchar, DataToSend$)
+            // IF rc != 0 THEN
+                // // We couldn't send, just keep it saved in DataToSend$
+                // BufferState = 1
+            // ELSE
+                // // Shift UartData by the amount that was written
+                // StrShiftLeft(UartData$,RdLen)
+            // ENDIF
+        // ENDIF
+			do 
+				IF BufferState == 0 then				
+					DataToSend$ = Left$(UartData$, nAttributeLength) // Ensure that we only read nAttribureLength
+					rc = BLECHARVALUENOTIFY(TXchar, DataToSend$)
+					select rc
+						case 0
+							StrShiftLeft(UartData$,nAttributeLength)
+							//print "-Succs send\n"
+						case 24614
+							print "-Connection Id not correct, rc=";integer.h'rc;"\n"
+							exitfunc 1
+						case else
+							BufferState = 1
+							print "-Ble send error! rc=";integer.h'rc;"\n"
+					endselect
+				ENDIF
+			until strlen(UartData$)==0
+		endif
     ENDIF
+
+ENDFUNC 1
+
+//------------------------------------------------------------------------------
+// EVUARTTXEMPTY - Uart buffer was emptied
+//------------------------------------------------------------------------------
+FUNCTION HndlrUartTxEmpty()
+
+    IF UARTBlocked == 1 THEN
+        UARTBlocked = 0
+        // rc = HndlrUartRx()
+    // ELSE
+        // //Check for UART data
+        // rc = HndlrUartRx()
+    ENDIF
+	//print "uart buf empty\n"
 
 ENDFUNC 1
 
@@ -269,13 +302,14 @@ ENDFUNC 1
 //------------------------------------------------------------------------------
 FUNCTION HndlrNtfyBuf()
 
-    IF UARTBlocked == 1 THEN
-        UARTBlocked = 0
-        rc = HndlrUartRx()
-    ELSE
-        //Check for UART data
-        rc = HndlrUartRx()
+    IF BufferState == 1 THEN
+        BufferState = 0
+        // rc = HndlrUartRx()
+    // ELSE
+        // //Check for UART data
+        // rc = HndlrUartRx()
     ENDIF
+	//print "Ntfy buf empty\n"
 
 ENDFUNC 1
 
@@ -349,12 +383,13 @@ rc = BleStartAdverts()
 //******************************************************************************
 // UART events
 ONEVENT EVUARTRX			CALL HndlrUartRx
+//ONEVENT EVUARTTXEMPTY		CALL HndlrUartTxEmpty
 // Generic BLE events
 ONEVENT EVBLEMSG			CALL HndlrBleMsg
 ONEVENT EVCHARVAL			CALL HndlrCharVal           // Used if AT+CFG 213=0
 ONEVENT EVCHARVALUE			CALL HndlrCharValue         // Used if AT+CFG 213=1
 ONEVENT EVNOTIFYBUF			CALL HndlrNtfyBuf
-ONEVENT EVDISCON			CALL HndlrDiscon
+//ONEVENT EVDISCON			CALL HndlrDiscon
 // BLE PHY
 OnEvent EVBLE_PHY_UPDATED	CALL HandlerPhyChngd
 OnEvent EVBLE_PHY_REQUEST	CALL HandlerPhyReq
