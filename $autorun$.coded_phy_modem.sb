@@ -36,8 +36,7 @@ FUNCTION HndlrNtfyBuf()
     IF BufferState == 1 THEN
         BufferState = 0
         // rc = SendUartToBleDevice()
-    // ELSE
-        // //Check for UART data
+    ELSE
         // rc = SendUartToBleDevice()
     ENDIF
 	//print "Ntfy buf empty\n"

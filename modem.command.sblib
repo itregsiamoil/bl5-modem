@@ -30,7 +30,7 @@ endfunc param
 //==============================================================================
 // Send data through BLE
 //==============================================================================
-FUNCTION SendUartToBleDevice(ConnIdDir)
+SUB SendUartToBleDevice(ConnIdDir)
 	DIM DataToSend$
 	do 
 		IF BufferState == 0 then				
@@ -42,14 +42,15 @@ FUNCTION SendUartToBleDevice(ConnIdDir)
 					//print "-Succs send\n"
 				case 24614
 					print "-Connection Id not correct, rc=";integer.h'rc;"\n"
-					exitfunc 1
+					exitsub
 				case else
 					BufferState = 1
 					print "-Ble send error! rc=";integer.h'rc;"\n"
 			endselect
-		ENDIF
+		else : break
+		endif
 	until strlen(urx$)==0
-ENDFUNC 1
+ENDSUB
 
 //-------------------------------------------------------------------------------
 // Function for parsing commands
@@ -88,7 +89,7 @@ sub CommandParser(CmdNum)
 		case SendToDev
 			rc=str_to_id()
 			if (rc>-1) then
-				rc=SendUartToBleDevice(conn_table(rc))
+				SendUartToBleDevice(conn_table(rc))
 			endif
 		case DisConn
 			rc=str_to_id()

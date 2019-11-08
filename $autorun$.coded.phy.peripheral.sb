@@ -113,39 +113,6 @@ FUNCTION EnableHighBandwidth()
 ENDFUNC 0
 
 //------------------------------------------------------------------------------
-// Start LE Adverts
-//------------------------------------------------------------------------------
-FUNCTION BleStartAdverts()
-
-    DIM nMinConnInterval, nMaxConnInterval
-	
-	rc = BleAdvertConfig(4,BLE_CODED_PHY) 
-	rc = BleAdvertConfig(5,BLE_CODED_PHY)
-	
-    // For default packet length, the optimum connection interval is 7500 us
-    nMinConnInterval = 7500
-    nMaxConnInterval = 7700
-
-    // Register GAP service with device name and connection intervals
-    dim DevName$ : DevName$ = "LAIRD_BL654"
-    rc = BleGapSvcInit(DevName$, 0, 0, nMinConnInterval, nMaxConnInterval, 4000000,  0)
-
-    // Start Ble adverts
-    dim Addr$ : Addr$ = ""
-    rc = BleAdvertStart(6, Addr$, 250, 0, 0)
-
-ENDFUNC 0
-
-//------------------------------------------------------------------------------
-// This shows the current connection parameters
-//------------------------------------------------------------------------------
-SUB ShowConnParms()
-    DIM intrvl,sprvto,slat
-    rc = BleGetCurConnParms(ConnectionID,intrvl,sprvto,slat)
-    print "## ConnParms :: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
-ENDSUB
-
-//------------------------------------------------------------------------------
 // Function that will create a custom VSP service with Tx/Rx characteristics
 //------------------------------------------------------------------------------
 function CreateVSPService()
@@ -199,6 +166,52 @@ function CreateVSPService()
 endfunc 0
 
 //------------------------------------------------------------------------------
+// Start LE Adverts
+//------------------------------------------------------------------------------
+FUNCTION BleStartAdverts()
+
+    DIM nMinConnInterval, nMaxConnInterval
+	dim scRpt$, adRpt$, UUIDStr$
+	
+	rc = BleAdvertConfig(4,BLE_CODED_PHY) 
+	rc = BleAdvertConfig(5,BLE_CODED_PHY)
+	
+    // For default packet length, the optimum connection interval is 7500 us
+    nMinConnInterval = 7500
+    nMaxConnInterval = 10000
+
+    // Register GAP service with device name and connection intervals
+    dim DevName$ : DevName$ = "LAIRD_BL654"
+    rc = BleGapSvcInit(DevName$, 0, 20, nMinConnInterval, nMaxConnInterval, 4000000,  0)
+
+	//Initialise the Advert report (no appearance AD)
+    rc = BleAdvRptInit(adRpt$, 2, 0, 15)
+
+    //Init the scan report for the VSP service 
+    rc = BleScanRptInit(scRpt$)
+
+    //Advertise the 128 bit uuid in a scan report
+    rc = BleAdvRptAddUuid128(scRpt$, BaseUUID)
+
+    //Commit the advert report
+    rc = BleAdvRptsCommit(adRpt$,scRpt$)
+
+    // Start Ble adverts
+    dim Addr$ : Addr$ = ""
+    rc = BleAdvertStart(6, Addr$, 100, 0, 0)
+
+ENDFUNC 0
+
+//------------------------------------------------------------------------------
+// This shows the current connection parameters
+//------------------------------------------------------------------------------
+SUB ShowConnParms()
+    DIM intrvl,sprvto,slat
+    rc = BleGetCurConnParms(ConnectionID,intrvl,sprvto,slat)
+    print "## ConnParms :: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
+ENDSUB
+
+//------------------------------------------------------------------------------
 // Function to handle Ble event messages
 //------------------------------------------------------------------------------
 #define BLE_EVBLEMSGID_CONNECT                  0   //nCtx = connection handle
@@ -228,7 +241,8 @@ function HndlrBleMsg(nMsgId, nCtx)
     case BLE_EVBLEMSGID_DISCONNECT
         PRINT "## Disconnected!\n"
         dim Addr$ : Addr$ = ""
-        rc = BleAdvertStart(6, Addr$, 250, 0, 0)
+        rc = BleAdvertStart(6, Addr$, 100, 0, 0)
+		ConnectionID = 0
 
     case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
         ShowConnParms()
@@ -243,74 +257,41 @@ endfunc 1
 //------------------------------------------------------------------------------
 FUNCTION HndlrUartRx()
     dim RdLen, DataToSend$
-    IF BufferState == 0 THEN
-		RdLen = UARTREADN(UartData$,nAttributeLength)
-        // Ensure that we only read nAttribureLength
-        // DataToSend$ = Left$(UartData$, nAttributeLength)
-
-        // // If there is data, send it as notifications
-        IF RdLen > 0 THEN
-            // rc = BLECHARVALUENOTIFY(TXchar, DataToSend$)
-            // IF rc != 0 THEN
-                // // We couldn't send, just keep it saved in DataToSend$
-                // BufferState = 1
-            // ELSE
-                // // Shift UartData by the amount that was written
-                // StrShiftLeft(UartData$,RdLen)
-            // ENDIF
-        // ENDIF
-			do 
-				IF BufferState == 0 then				
-					DataToSend$ = Left$(UartData$, nAttributeLength) // Ensure that we only read nAttribureLength
-					rc = BLECHARVALUENOTIFY(TXchar, DataToSend$)
-					select rc
-						case 0
-							StrShiftLeft(UartData$,nAttributeLength)
-							//print "-Succs send\n"
-						case 24614
-							print "-Connection Id not correct, rc=";integer.h'rc;"\n"
-							exitfunc 1
-						case else
-							BufferState = 1
-							print "-Ble send error! rc=";integer.h'rc;"\n"
-					endselect
-				ENDIF
-			until strlen(UartData$)==0
-		endif
-    ENDIF
-
-ENDFUNC 1
-
-//------------------------------------------------------------------------------
-// EVUARTTXEMPTY - Uart buffer was emptied
-//------------------------------------------------------------------------------
-FUNCTION HndlrUartTxEmpty()
-
-    IF UARTBlocked == 1 THEN
-        UARTBlocked = 0
-        // rc = HndlrUartRx()
-    // ELSE
-        // //Check for UART data
-        // rc = HndlrUartRx()
-    ENDIF
-	//print "uart buf empty\n"
-
+	RdLen = UARTREADN(UartData$,2048)
+	if ConnectionID!=0 then
+		IF RdLen > 0 THEN
+			IF BufferState == 0 THEN		
+				//print "ubuf=";strhexize$(UartData$);"\n"
+				DataToSend$ = Left$(UartData$, nAttributeLength)
+				rc = BLECHARVALUENOTIFY(TXchar, DataToSend$)
+				select rc
+					case 0
+						rc=strlen(DataToSend$)
+						StrShiftLeft(UartData$,rc)
+						print "-Succs send\n"
+					case else
+						BufferState = 1
+						print "-Ble send error! rc=";integer.h'rc;" msg-";DataToSend$;"\n"
+				endselect
+			endif
+		ENDIF
+	else 
+		print "rcv-";UartData$
+		UartData$=""
+	endif
 ENDFUNC 1
 
 //------------------------------------------------------------------------------
 // EVNOTIFYBUF - Notification buffer was emptied
 //------------------------------------------------------------------------------
 FUNCTION HndlrNtfyBuf()
-
     IF BufferState == 1 THEN
         BufferState = 0
-        // rc = HndlrUartRx()
-    // ELSE
-        // //Check for UART data
-        // rc = HndlrUartRx()
+        rc=HndlrUartRx()
+    ELSE
+        rc=HndlrUartRx()
     ENDIF
 	//print "Ntfy buf empty\n"
-
 ENDFUNC 1
 
 //------------------------------------------------------------------------------
