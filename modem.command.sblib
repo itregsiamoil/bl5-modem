@@ -6,6 +6,7 @@
 #define ConnToDev			3 //+ № из таблицы адресов
 #define SendToDev			4 //+ № из таблицы адресов + данные
 #define DisConn				5 //+ № из таблицы адресов
+#define DebudSwitch			6
 
 //==============================================================================
 // Parsing command parametr
@@ -30,27 +31,31 @@ endfunc param
 //==============================================================================
 // Send data through BLE
 //==============================================================================
-SUB SendUartToBleDevice(ConnIdDir)
+function SendToBle(ConnId,data$)
 	DIM DataToSend$
-	do 
-		IF BufferState == 0 then				
-			DataToSend$ = Left$(urx$, nAttributeLength) // Ensure that we only read nAttribureLength
-			rc = BLEGATTCWRITECMD(ConnIdDir, RXHandle, DataToSend$)
-			select rc
-				case 0
-					StrShiftLeft(urx$,nAttributeLength)
-					//print "-Succs send\n"
-				case 24614
-					print "-Connection Id not correct, rc=";integer.h'rc;"\n"
-					exitsub
-				case else
-					BufferState = 1
-					print "-Ble send error! rc=";integer.h'rc;"\n"
-			endselect
-		else : break
-		endif
-	until strlen(urx$)==0
-ENDSUB
+	IF BufferState == 0 then				
+		DataToSend$ = Left$(data$, nAttributeLength) // Ensure that we only read nAttribureLength
+		rc = BLEGATTCWRITECMD(ConnId, RXHandle, DataToSend$)
+		select rc
+			case 0
+				StrShiftLeft(data$,nAttributeLength)
+				if (debsw==1) then : print "-Succs send\n" : endif
+			case 24614
+				print "-Connection Id not correct, rc=";integer.h'rc;"\n"
+				exitfunc 2
+			case else
+				BufferState = 1
+				if (debsw==1) then : print "-Ble send error! rc=";integer.h'rc;"\n" : endif
+		endselect
+	else 
+		if (debsw==1) then : print "-Buf full\n" : endif
+		exitfunc 0 
+	endif
+	if strlen(data$)==0 then
+		if (debsw==1) then : print "-Buff conn: ";ConnId;" empty\n" : endif
+		exitfunc 0 
+	endif
+endfunc 1
 
 //-------------------------------------------------------------------------------
 // Function for parsing commands
@@ -66,14 +71,14 @@ sub CommandParser(CmdNum)
 			endif
 		case StopScanDev
 			rc = BleScanStop() 
-			if SysInfo(2016) == 0 THEN 
-				PRINT "-";integer.d'StopScanDev;"-Scan stopped\n"
+			if SysInfo(2016)==0 THEN : PRINT "-";integer.d'StopScanDev;"-Scan stopped\n"
 			endif
-			dim i
 			print "-";integer.d'StopScanDev;"-";dev_cnt;" device in table: \n"
+			dim i
 			for i=0 to dev_cnt-1
 				print "-";integer.d'StopScanDev;"-";i;"-"; strhexize$(addr_table$[i]);"-";msg_cnt[i];"\n"
 				msg_cnt[i]=1
+				if (strlen(addr_table$[i])==0) then : break : endif
 			next
 		case ConnToDev
 			ad_from_table=str_to_id()
@@ -87,9 +92,31 @@ sub CommandParser(CmdNum)
 				endif
 			endif
 		case SendToDev
-			rc=str_to_id()
-			if (rc>-1) then
-				SendUartToBleDevice(conn_table(rc))
+			dim CurrConnId
+			CurrConnId=str_to_id()
+			if (CurrConnId>-1) then
+				data_table$[CurrConnId]=urx$
+				if (CurrConnId==PrevConnId) then					
+					do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
+					until rc==0
+					PrevConnId=CurrConnId
+				else
+					if (strlen(data_table$[PrevConnId])!=0) then
+						if (debsw==1) then : print "-Old conn send\n" : endif
+						do : rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
+						until rc==0
+					else 
+						if (debsw==1) then : print "-New conn send\n" : endif
+						do 
+							rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
+							if (rc==2) then 
+								data_table$[CurrConnId]=""
+								break 
+							endif
+						until rc==0		 
+					endif
+					PrevConnId=CurrConnId
+				endif
 			endif
 		case DisConn
 			rc=str_to_id()
@@ -98,6 +125,10 @@ sub CommandParser(CmdNum)
 				if rc==0 then : print "-";integer.d'DisConn;"-Close conncection: ";conn_table(rc); "\n"
 				else : print "-";integer.d'DisConn;"-Unable to close conncection, error: ";integer.h'rc;"\n"
 				endif
+			endif
+		case DebudSwitch	
+			if (debsw==0) then : print "-";integer.d'DebudSwitch;"-Debug on\n" : debsw=1
+			else : print "-";integer.d'DebudSwitch;"-Debug off\n" : debsw=0
 			endif
 		case else
 			PRINT "-Unknown cmnd. ECHO=";strhexize$(urx$);"\n"

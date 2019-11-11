@@ -44,11 +44,14 @@ dim BleBuf$ : BleBuf$ = ""          //VSP read buffer
 dim Separator$:Separator$="-"		//разделитель заголовок-команда-параметр
 dim rc
 dim ad_from_table:ad_from_table=0
+dim PrevConnId:PrevConnId=0 
 dim dev_cnt:dev_cnt=0
 dim conn_cnt:conn_cnt=0
 dim msg_cnt[device_addr_overall]
 dim addr_table$[device_addr_overall]
+dim data_table$[device_addr_overall]
 dim conn_table[device_addr_overall]
+dim debsw:debsw=0
 
 //BLE EVENT MSG IDs
 #define BLE_EVBLEMSGID_CONNECT                         	 0 // nCtx = connection handle

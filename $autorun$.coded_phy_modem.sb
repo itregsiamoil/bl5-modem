@@ -35,11 +35,11 @@ endfunc 1
 FUNCTION HndlrNtfyBuf()
     IF BufferState == 1 THEN
         BufferState = 0
-        // rc = SendUartToBleDevice()
-    ELSE
-        // rc = SendUartToBleDevice()
+        rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
+    // ELSE
+        // rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
     ENDIF
-	//print "Ntfy buf empty\n"
+	if (debsw==1) then : print "Client: data rcv &  buf empty\n" : endif
 ENDFUNC 1
 	
 //==============================================================================
@@ -59,10 +59,18 @@ ENDFUNC 1
 //------------------------------------------------------------------------------
 // EVATTRNOTIFYEX - Received BLE notification
 //------------------------------------------------------------------------------
+dim LastTick
 FUNCTION HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL nType AS INTEGER, BYVAL nLength AS INTEGER,BYVAL data$ AS STRING)
-    IF (hAttr == TXHandle) then
-        // Just print data that we got 
-        PRINT "-";integer.d'SendToDev;"-";hConn;"-";nLength;"-";Data$;"\n"
+    IF (hAttr == TXHandle) then	
+		dim i
+        for i=0 to device_addr_overall-1
+			if (hConn==conn_table[i]) then
+				PRINT "-";integer.d'SendToDev;"-";i;"-";nLength;"-";Data$;"\n" // Just print data that we got 
+				print "time-";GetTickCount()-LastTick;"\n"
+				LastTick=GetTickCount()
+				break
+			endif
+		next
     ENDIF
     Data$ = ""
 ENDFUNC 1
@@ -98,14 +106,14 @@ endfunc 1
 // EVBLE_PHY_UPDATED - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyChngd(BYVAL hConn, BYVAL nStatus, BYVAL PhyTx, BYVAL PhyRx)
-    print "-";integer.d'ConnToDev;"-PHY Changed: Status: ";integer.h' nStatus;" - PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n"
+    if (debsw==1) then : print "-PHY Changed: Status: ";integer.h' nStatus;" - PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
 endfunc 1
 
 //==============================================================================
 // EVBLE_PHY_REQUEST - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
-    print "-";integer.d'ConnToDev;"-PHY Request - PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n"
+    if (debsw==1) then : print "-PHY Request - PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
     // Accept the PHY requested by the remote device
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
@@ -156,7 +164,7 @@ ENDFUNC 1
 SUB ShowConnParms(nConnHandle)
     DIM intrvl,sprvto,slat
     rc = BleGetCurConnParms(nConnHandle,intrvl,sprvto,slat)
-    print "-";integer.d'ConnToDev;"-ConnParms: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
+    if (debsw==1) then : print "-ConnParms: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n" : endif
 ENDSUB
 
 //==============================================================================
