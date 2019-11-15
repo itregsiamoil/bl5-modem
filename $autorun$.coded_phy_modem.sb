@@ -34,12 +34,16 @@ endfunc 1
 //------------------------------------------------------------------------------
 FUNCTION HndlrNtfyBuf()
     IF BufferState == 1 THEN
+		TimerCancel(0)
         BufferState = 0
         rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
     // ELSE
         // rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
     ENDIF
 	if (debsw==1) then : print "Client: data rcv &  buf empty\n" : endif
+	if SendTestFlag==1 then
+		if (strlen(data_table$[PrevConnId])==0) then : TimerStart(0,55,1) : endif
+	endif
 ENDFUNC 1
 	
 //==============================================================================

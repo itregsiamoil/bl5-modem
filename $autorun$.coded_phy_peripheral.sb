@@ -228,7 +228,7 @@ endfunc 1
 SUB ShowConnParms()
     DIM intrvl,sprvto,slat
     rc = BleGetCurConnParms(ConnectionID,intrvl,sprvto,slat)
-    print "## ConnParms :: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
+    //print "## ConnParms :: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
 ENDSUB
 
 //------------------------------------------------------------------------------

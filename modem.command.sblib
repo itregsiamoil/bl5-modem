@@ -8,6 +8,7 @@
 #define DisConn				5 //+ № из таблицы адресов
 #define DebudSwitch			6
 #define SendTestData		7 //+ № из таблицы адресов + количесвто по 100байт + задержка между 100 байтами
+#define ResetMdm			8
 
 //==============================================================================
 // Parsing command parametr
@@ -63,7 +64,7 @@ endfunc 1
 //==============================================================================
 function SendKbytes ()
 	data_table$[CurrConnId]=TestStr$
-	if sendcount<kbytes then
+	if sendcount<kbytes-1 then
 		do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
 		until rc==0
 		PrevConnId=CurrConnId
@@ -71,6 +72,7 @@ function SendKbytes ()
 		if (debsw==1) then : print sendcount;" send\n" : endif
 	else
 		sendcount=0
+		SendTestFlag=0
 		TimerCancel(0)
 		endif
 endfunc 1
@@ -152,22 +154,30 @@ sub CommandParser(CmdNum)
 			rc=str_to_id()
 			select rc
 				case 0
+					debsw=rc
 					print "-";integer.d'DebudSwitch;"-Debug off\n"
 				case 1 
+					debsw=rc
 					print "-";integer.d'DebudSwitch;"-Debug on\n"
 				case 2
+					debsw=rc
 					print "-";integer.d'DebudSwitch;"-Debug msg timer on\n"
 				case else
 			endselect
 		case SendTestData
-			dim interval
 			CurrConnId=str_to_id()
+			SendTestFlag=1
 			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
 				kbytes=str_to_id()
-				interval=str_to_id()
-				if (interval>-1)&&(kbytes>-1) then : TimerStart(0,interval,1) : endif
+				if (kbytes>-1) then
+					data_table$[CurrConnId]=TestStr$
+					do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
+					until rc==0
+				endif
 			else : print "-Id not correct\n"
-			endif	
+			endif
+		case ResetMdm
+			Reset(0)
 		case else
 			PRINT "-Unknown cmnd. ECHO=";strhexize$(urx$);"\n"
 	endselect

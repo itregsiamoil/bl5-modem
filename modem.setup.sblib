@@ -53,7 +53,7 @@ dim addr_table$[device_addr_overall]
 dim data_table$[device_addr_overall]
 dim conn_table[device_addr_overall]
 dim debsw:debsw=0
-dim sendcount,kbytes
+dim sendcount,kbytes, SendTestFlag
 dim TestStr$:TestStr$ = "1234567890qwertyuiop0987654321asdfghjkl;1234567890zxcvbnm,./1234567890qwertyuiop0987654321asdfghjkl;"
 
 //BLE EVENT MSG IDs
