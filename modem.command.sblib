@@ -7,6 +7,7 @@
 #define SendToDev			4 //+ № из таблицы адресов + данные
 #define DisConn				5 //+ № из таблицы адресов
 #define DebudSwitch			6
+#define SendTestData		7 //+ № из таблицы адресов + количесвто по 100байт + задержка между 100 байтами
 
 //==============================================================================
 // Parsing command parametr
@@ -21,10 +22,10 @@ function str_to_id()
 		input_param$=Left$(urx$,SepPos)
 		param=strvaldec(input_param$)
 		StrShiftLeft(urx$,SepPos+1)
-		if (param>device_addr_overall-1) then
-			param=-1
-			print "-Id bigger then max: ";integer.d'device_addr_overall;"\n"
-		endif
+		// if (param>device_addr_overall-1) then
+			// param=-1
+			// print "-Id bigger then max: ";integer.d'device_addr_overall;"\n"
+		// endif
 	endif
 endfunc param
 
@@ -57,6 +58,23 @@ function SendToBle(ConnId,data$)
 	endif
 endfunc 1
 
+//==============================================================================
+// Send test string 
+//==============================================================================
+function SendKbytes ()
+	data_table$[CurrConnId]=TestStr$
+	if sendcount<kbytes then
+		do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
+		until rc==0
+		PrevConnId=CurrConnId
+		sendcount=sendcount+1
+		if (debsw==1) then : print sendcount;" send\n" : endif
+	else
+		sendcount=0
+		TimerCancel(0)
+		endif
+endfunc 1
+
 //-------------------------------------------------------------------------------
 // Function for parsing commands
 //-------------------------------------------------------------------------------
@@ -71,7 +89,9 @@ sub CommandParser(CmdNum)
 			endif
 		case StopScanDev
 			rc = BleScanStop() 
-			if SysInfo(2016)==0 THEN : PRINT "-";integer.d'StopScanDev;"-Scan stopped\n"
+			if SysInfo(2016)==0 THEN 
+				PRINT "-";integer.d'StopScanDev;"-Scan stopped\n"
+				//rc = BleScanFlush()
 			endif
 			print "-";integer.d'StopScanDev;"-";dev_cnt;" device in table: \n"
 			dim i
@@ -82,7 +102,7 @@ sub CommandParser(CmdNum)
 			next
 		case ConnToDev
 			ad_from_table=str_to_id()
-			if (ad_from_table>-1) then
+			if (ad_from_table>-1)&&(ad_from_table<device_addr_overall) then
 				rc = BleConnect(addr_table$[ad_from_table], 5000, 7500, 150000, 5000000)
 				if rc == 0 then
 					dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
@@ -90,11 +110,11 @@ sub CommandParser(CmdNum)
 				else
 					print "-";integer.d'ConnToDev;"-Unable to connect, error: ";integer.h'rc;"\n"
 				endif
+			else : print "-Id not correct\n"	
 			endif
 		case SendToDev
-			dim CurrConnId
 			CurrConnId=str_to_id()
-			if (CurrConnId>-1) then
+			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
 				data_table$[CurrConnId]=urx$
 				if (CurrConnId==PrevConnId) then					
 					do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
@@ -117,19 +137,37 @@ sub CommandParser(CmdNum)
 					endif
 					PrevConnId=CurrConnId
 				endif
+			else : print "-Id not correct\n"
 			endif
 		case DisConn
 			rc=str_to_id()
-			if (rc>-1) then
+			if (rc>-1)&&(rc<device_addr_overall) then
 				rc = BleDisconnect(conn_table(rc))
 				if rc==0 then : print "-";integer.d'DisConn;"-Close conncection: ";conn_table(rc); "\n"
 				else : print "-";integer.d'DisConn;"-Unable to close conncection, error: ";integer.h'rc;"\n"
 				endif
+			else : print "-Id not correct\n"
 			endif
 		case DebudSwitch	
-			if (debsw==0) then : print "-";integer.d'DebudSwitch;"-Debug on\n" : debsw=1
-			else : print "-";integer.d'DebudSwitch;"-Debug off\n" : debsw=0
-			endif
+			rc=str_to_id()
+			select rc
+				case 0
+					print "-";integer.d'DebudSwitch;"-Debug off\n"
+				case 1 
+					print "-";integer.d'DebudSwitch;"-Debug on\n"
+				case 2
+					print "-";integer.d'DebudSwitch;"-Debug msg timer on\n"
+				case else
+			endselect
+		case SendTestData
+			dim interval
+			CurrConnId=str_to_id()
+			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
+				kbytes=str_to_id()
+				interval=str_to_id()
+				if (interval>-1)&&(kbytes>-1) then : TimerStart(0,interval,1) : endif
+			else : print "-Id not correct\n"
+			endif	
 		case else
 			PRINT "-Unknown cmnd. ECHO=";strhexize$(urx$);"\n"
 	endselect

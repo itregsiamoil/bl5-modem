@@ -2,45 +2,37 @@
 // Definitions
 //******************************************************************************
 #define BLE_TX_PWOER                    8 // Possible values are 8, 7, 6, 5, 4, 3, 2, 0, -4, -8, -12, -16, -20, -40dBm
-
 #define BLE_1M_PHY                      1
 #define BLE_2M_PHY                      2
 #define BLE_CODED_PHY                   4
+// Definitions for attribute values to achieve higher bandwidth needed for CODED PHY
+#define USE_STRINT_IN_EVENTS_KEY_ID             213    // CFG ID 213
+#define ENABLE_HIGH_BANDWIDTH_KEY_ID            214    // CFG ID 214
+#define USE_STRING_IN_EVENTS                    1   // 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
+#define BLE_ENABLE_HIGH_BANDWIDTH               1      // 0: Normal Bandwidth (default), 1: High Bandwidth
+#define BleAppearance							3200 //3200-весы, 520-тэг, 128-компьютер, 64-телефонб 384-удаленное кправление, ble_types.h in SDK
 
 //******************************************************************************
 // Global Variable Declarations
 //******************************************************************************
-
+dim DevName$ : DevName$ = 			"BL654"
 dim rc                              // Result code variable (used for checking if a function completed successfully or not)
 dim BaseUUID                        // Base UUID for the VSP service which other UUIDs will be siblings of
-
 dim svcID                           // VSP Service ID
 dim TXchar                          // TX characteristic
 dim RXchar                          // RX characteristic
 dim MOchar                          // Modem Out characteristic
 dim MIchar                          // Modem In characteristic
 dim MIval                           // Modem In value
-
-dim ConnectionID                    // Holds the connection ID of the VSP client (if one is connected)
+dim ConnectionID:ConnectionID = 0	// Holds the connection ID of the VSP client (if one is connected)
 dim RecBuf$ : RecBuf$ = ""          // VSP receive buffer
 dim UARTBlocked : UARTBlocked = 0   // When set to 1 will not read data from the UART
 dim BufferState : BufferState = 0
 dim UartData$                       // Data from the UART waiting to be sent out
-
-
 dim nBleMaxPacketLength : nBleMaxPacketLength = 27  //Default maximum packet length on BL654
 dim nAttributeMTU       : nAttributeMTU = 23        //Default Maximum Transmission Unit on BL654
 dim nAttributeLength    : nAttributeLength = 20     //Default Attribute Data Length on BL654
 dim nHighBandwidth      : nHighBandwidth = 0        //Default configuration, 1=High, 0=Low
-
-//******************************************************************************
-// Initialise Global Variable
-//******************************************************************************
-ConnectionID = 0
-
-//******************************************************************************
-// Function and Subroutine definitions
-//******************************************************************************
 
 //------------------------------------------------------------------------------
 // Register Error Handler as early as possible
@@ -58,14 +50,6 @@ sub AssertRC(rc, tag)
         print "Assert Error ";rc;" @ tag ";tag;"\r\n"
     endif
 endsub
-
-//-------------------------------------------------------------------------------
-// Definitions for attribute values to achieve higher bandwidth needed for CODED PHY
-#define USE_STRINT_IN_EVENTS_KEY_ID             213    // CFG ID 213
-#define ENABLE_HIGH_BANDWIDTH_KEY_ID            214    // CFG ID 214
-
-#define USE_STRING_IN_EVENTS                    1   // 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
-#define BLE_ENABLE_HIGH_BANDWIDTH               1      // 0: Normal Bandwidth (default), 1: High Bandwidth
 
 //-------------------------------------------------------------------------------
 // This function is to enable the High Bandwidth configuration in order to achieve the long range
@@ -143,88 +127,28 @@ endfunc 0
 // Start LE Adverts
 //------------------------------------------------------------------------------
 FUNCTION BleStartAdverts()
-
     DIM nMinConnInterval, nMaxConnInterval
-	dim scRpt$, adRpt$, UUIDStr$
-	
+	dim scRpt$, adRpt$, UUIDStr$, ad$	
 	rc = BleAdvertConfig(4,BLE_CODED_PHY) 
-	rc = BleAdvertConfig(5,BLE_CODED_PHY)
-	
-    // For default packet length, the optimum connection interval is 7500 us
-    nMinConnInterval = 7500
-    nMaxConnInterval = 10000
-
-    // Register GAP service with device name and connection intervals
-    dim DevName$ : DevName$ = "LAIRD_BL654"
-    rc = BleGapSvcInit(DevName$, 0, 20, nMinConnInterval, nMaxConnInterval, 4000000,  0)
-
+	rc = BleAdvertConfig(5,BLE_CODED_PHY)	
+	// Register GAP service with device name and connection intervals
+    rc = BleGapSvcInit(DevName$, 0, BleAppearance, 7500, 10000, 4000000, 0) : AssertRC(rc,1)
 	//Initialise the Advert report (no appearance AD)
-    rc = BleAdvRptInit(adRpt$, 2, 0, 15)
-
+    rc = BleAdvRptInit(adRpt$, 2, 1, 10) : AssertRC(rc,2)
     //Init the scan report for the VSP service 
-    rc = BleScanRptInit(scRpt$)
-
+    rc = BleScanRptInit(scRpt$) : AssertRC(rc,3)
     //Advertise the 128 bit uuid in a scan report
-    rc = BleAdvRptAddUuid128(scRpt$, BaseUUID)
-
+    rc = BleAdvRptAddUuid128(scRpt$, BaseUUID) : AssertRC(rc,4)
+	ad$="\01\02\03\04"
+	rc=BleAdvRptAppendAD(adRpt$,0x31,ad$) : AssertRC(rc,5)	
     //Commit the advert report
-    rc = BleAdvRptsCommit(adRpt$,scRpt$)
-
+    rc = BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,6)
     // Start Ble adverts
-    dim Addr$ : Addr$ = ""
-    rc = BleAdvertStart(6, Addr$, 100, 0, 0)
+    dim Addr$ : Addr$ = " "
+    rc = BleAdvertStart(6, Addr$, 100, 0, 0) : AssertRC(rc,7)
+	//print strhexize$(adRpt$);"---"; strhexize$(scRpt$);"\n"
 
 ENDFUNC 0
-
-//------------------------------------------------------------------------------
-// This shows the current connection parameters
-//------------------------------------------------------------------------------
-SUB ShowConnParms()
-    DIM intrvl,sprvto,slat
-    rc = BleGetCurConnParms(ConnectionID,intrvl,sprvto,slat)
-    print "## ConnParms :: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
-ENDSUB
-
-//------------------------------------------------------------------------------
-// Function to handle Ble event messages
-//------------------------------------------------------------------------------
-#define BLE_EVBLEMSGID_CONNECT                  0   //nCtx = connection handle
-#define BLE_EVBLEMSGID_DISCONNECT               1   //nCtx = connection handle
-#define BLE_EVBLEMSGID_SERVICE_ERROR            4   //nCtx = resultcode
-#define BLE_EVBLEMSGID_DISPLAY_PASSKEY          9   //nCtx = passcode to display
-#define BLE_EVBLEMSGID_NEW_BOND                 10  //nCtx = connection handle
-#define BLE_EVBLEMSGID_AUTH_KEY_REQUEST         11  //nCtx = 1 for passkey, 2 for 16 byte OOB data
-#define BLE_EVBLEMSGID_HRS_NOTIFICATION_STATE   12  //nCtx = new notification state 0=off, 1=on
-#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE        14  //nCtx = connection handle
-#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE_FAIL   15  //nCtx = connection handle
-#define BLE_EVBLEMSGID_CONN_TO_BONDED_MASTER    16  //nCtx = connection handle
-#define BLE_EVBLEMSGID_UPDATED_BOND             17  //nCtx = connection handle
-#define BLE_EVBLEMSGID_ENCRYPTED                18  //nCtx = connection handle
-#define BLE_EVBLEMSGID_POWER_FAILURE_WARNING    19  //nCtx = current supply voltage
-#define BLE_EVBLEMSGID_UNENCRYPTED              20  //nCtx = connection handle
-#define BLE_EVBLEMSGID_DEVICENAME_WRITE         21  //nCtx = connection handle
-//------------------------------------------------------------------------------
-function HndlrBleMsg(nMsgId, nCtx)
-
-    select nMsgId
-    case BLE_EVBLEMSGID_CONNECT
-        PRINT "## Connected\n"
-        ConnectionID = nCtx
-        ShowConnParms()
-
-    case BLE_EVBLEMSGID_DISCONNECT
-        PRINT "## Disconnected!\n"
-        dim Addr$ : Addr$ = ""
-        rc = BleAdvertStart(6, Addr$, 100, 0, 0)
-		ConnectionID = 0
-
-    case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
-        ShowConnParms()
-
-    case else
-    endselect
-
-endfunc 1
 
 //------------------------------------------------------------------------------
 // EVUARTRX - Function handler for UART data receive
@@ -269,20 +193,6 @@ FUNCTION HndlrNtfyBuf()
 ENDFUNC 1
 
 //------------------------------------------------------------------------------
-// EVCHARVAL - Handler for characteristic value written
-//------------------------------------------------------------------------------
-FUNCTION HndlrCharVal(charHandle, offset, len)
-
-    dim Rd$, arc, SLen, SWritten
-
-    arc = BleCharValueRead(charHandle, Rd$)
-    IF charHandle == RXchar THEN
-        PRINT Rd$
-    ENDIF
-
-ENDFUNC 1
-
-//------------------------------------------------------------------------------
 // EVCHARVALUE - Handler for characteristic value written
 //------------------------------------------------------------------------------
 FUNCTION HndlrCharValue(nConnHandle, charHandle, offset, len, BYVAL Rd$ AS STRING)
@@ -312,46 +222,72 @@ function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
 
-FUNCTION HndlrDiscon(BYVAL hConn AS INTEGER, BYVAL nRsn AS INTEGER) AS INTEGER 
-	PRINT "\nConnection ";hConn;" Closed: 0x";nRsn 
-ENDFUNC 0
+//------------------------------------------------------------------------------
+// This shows the current connection parameters
+//------------------------------------------------------------------------------
+SUB ShowConnParms()
+    DIM intrvl,sprvto,slat
+    rc = BleGetCurConnParms(ConnectionID,intrvl,sprvto,slat)
+    print "## ConnParms :: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
+ENDSUB
+
+//------------------------------------------------------------------------------
+// Function to handle Ble event messages
+//------------------------------------------------------------------------------
+#define BLE_EVBLEMSGID_CONNECT                  0   //nCtx = connection handle
+#define BLE_EVBLEMSGID_DISCONNECT               1   //nCtx = connection handle
+#define BLE_EVBLEMSGID_SERVICE_ERROR            4   //nCtx = resultcode
+#define BLE_EVBLEMSGID_DISPLAY_PASSKEY          9   //nCtx = passcode to display
+#define BLE_EVBLEMSGID_NEW_BOND                 10  //nCtx = connection handle
+#define BLE_EVBLEMSGID_AUTH_KEY_REQUEST         11  //nCtx = 1 for passkey, 2 for 16 byte OOB data
+#define BLE_EVBLEMSGID_HRS_NOTIFICATION_STATE   12  //nCtx = new notification state 0=off, 1=on
+#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE        14  //nCtx = connection handle
+#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE_FAIL   15  //nCtx = connection handle
+#define BLE_EVBLEMSGID_CONN_TO_BONDED_MASTER    16  //nCtx = connection handle
+#define BLE_EVBLEMSGID_UPDATED_BOND             17  //nCtx = connection handle
+#define BLE_EVBLEMSGID_ENCRYPTED                18  //nCtx = connection handle
+#define BLE_EVBLEMSGID_POWER_FAILURE_WARNING    19  //nCtx = current supply voltage
+#define BLE_EVBLEMSGID_UNENCRYPTED              20  //nCtx = connection handle
+#define BLE_EVBLEMSGID_DEVICENAME_WRITE         21  //nCtx = connection handle
+//------------------------------------------------------------------------------
+function HndlrBleMsg(nMsgId, nCtx)
+    select nMsgId
+    case BLE_EVBLEMSGID_CONNECT
+        PRINT "## Connected\n"
+        ConnectionID = nCtx
+        ShowConnParms()
+    case BLE_EVBLEMSGID_DISCONNECT
+        PRINT "## Disconnected!\n"
+        dim Addr$ : Addr$ = ""
+        rc = BleAdvertStart(6, Addr$, 100, 0, 0)
+		ConnectionID = 0
+    case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
+        ShowConnParms()
+    case else
+    endselect
+endfunc 1
 
 //******************************************************************************
 // Start up code from here -equivalent to main() in a 'C' application
 //******************************************************************************
-
-// Close UART and open at 115200 baud rate
 UARTClose()
 rc = UartOpen(115200, 2048, 2048, "CN81H")
-
-rc=BleTxPowerSet(BLE_TX_PWOER)
-
-// Enable High bandwidth which is needed for CODED Phy
+rc = BleTxPowerSet(BLE_TX_PWOER)
 rc = EnableHighBandwidth()
-
-// Setup VSP service
 rc = CreateVSPService()
-// Start LE Adverts
 rc = BleStartAdverts()
-
 
 //******************************************************************************
 //Setup event handlers
 //******************************************************************************
 // UART events
 ONEVENT EVUARTRX			CALL HndlrUartRx
-//ONEVENT EVUARTTXEMPTY		CALL HndlrUartTxEmpty
 // Generic BLE events
 ONEVENT EVBLEMSG			CALL HndlrBleMsg
-ONEVENT EVCHARVAL			CALL HndlrCharVal           // Used if AT+CFG 213=0
 ONEVENT EVCHARVALUE			CALL HndlrCharValue         // Used if AT+CFG 213=1
 ONEVENT EVNOTIFYBUF			CALL HndlrNtfyBuf
-//ONEVENT EVDISCON			CALL HndlrDiscon
 // BLE PHY
 OnEvent EVBLE_PHY_UPDATED	CALL HandlerPhyChngd
 OnEvent EVBLE_PHY_REQUEST	CALL HandlerPhyReq
 
-//******************************************************************************
-//Wait in a lower-power mode for an event to occur
-//******************************************************************************
 WAITEVENT

@@ -66,8 +66,10 @@ FUNCTION HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL 
         for i=0 to device_addr_overall-1
 			if (hConn==conn_table[i]) then
 				PRINT "-";integer.d'SendToDev;"-";i;"-";nLength;"-";Data$;"\n" // Just print data that we got 
-				print "time-";GetTickCount()-LastTick;"\n"
-				LastTick=GetTickCount()
+				if (debsw==2) then
+					print "time-";GetTickCount()-LastTick;"\n"
+					LastTick=GetTickCount()
+				endif
 				break
 			endif
 		next
@@ -235,5 +237,7 @@ OnEvent	EVUARTRX 				call HndlrUartRx
 // BLE PHY
 OnEvent	EVBLE_PHY_UPDATED  		call HandlerPhyChngd
 OnEvent	EVBLE_PHY_REQUEST  		call HandlerPhyReq
+
+ONEVENT EVTMR0 					CALL SendKbytes
 
 WaitEvent // Wait for a synchronous event.
