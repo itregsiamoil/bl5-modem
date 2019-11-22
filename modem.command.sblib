@@ -1,14 +1,24 @@
 //#include "modem.setup.sblib"
 
 //Commands
+#define Help				0
+#define pHelp				" 0- *print all cmnds list\n"
 #define ScanDev				1
+#define pScanDev			" 1- *unlimit scan BLE devices\n"
 #define StopScanDev			2
-#define ConnToDev			3 //+ № из таблицы адресов
-#define SendToDev			4 //+ № из таблицы адресов + данные
-#define DisConn				5 //+ № из таблицы адресов
+#define pStopScanDev		" 2- *stop scan BLE devices\n"
+#define ConnToDev			3
+#define pConnToDev			" 3-c- *connect to selected device from table\n"
+#define SendToDev			4
+#define pSendToDev			" 4-c-d- *send data to selected device from table\n"
+#define DisConn				5
+#define pDisConn			" 5-c- *disconnect from selected device from table\n"
 #define DebudSwitch			6
-#define SendTestData		7 //+ № из таблицы адресов + количесвто по 100байт + задержка между 100 байтами
+#define pDebudSwitch		" 6-0/1/2- *0-off debug, 1-on debug, 2-measure time between msgs\n"
+#define SendTestData		7
+#define pSendTestData		" 7-c-n- *send test string\n"
 #define ResetMdm			8
+#define pResetMdm			" 8- *reset modem\n"
 
 //==============================================================================
 // Parsing command parametr
@@ -45,6 +55,9 @@ function SendToBle(ConnId,data$)
 			case 24614
 				print "-Connection Id not correct, rc=";integer.h'rc;"\n"
 				exitfunc 2
+			case 24662
+				print "-Data to send is empty, rc=";integer.h'rc;"\n"
+				exitfunc 0
 			case else
 				BufferState = 1
 				if (debsw==1) then : print "-Ble send error! rc=";integer.h'rc;"\n" : endif
@@ -63,11 +76,10 @@ endfunc 1
 // Send test string 
 //==============================================================================
 function SendKbytes ()
-	data_table$[CurrConnId]=TestStr$
+	data_table$[PrevConnId]=TestStr$
 	if sendcount<kbytes-1 then
-		do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
+		do : rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
 		until rc==0
-		PrevConnId=CurrConnId
 		sendcount=sendcount+1
 		if (debsw==1) then : print sendcount;" send\n" : endif
 	else
@@ -82,6 +94,8 @@ endfunc 1
 //-------------------------------------------------------------------------------
 sub CommandParser(CmdNum)
 	select CmdNum
+		case Help
+			print pHelp;pScanDev;pStopScanDev;pConnToDev;pSendToDev;pDisConn;pDebudSwitch;pSendTestData;pResetMdm
 		case ScanDev
 			rc = BleScanStart(time_to_scan, 0)
 			if rc == 0 then
@@ -173,6 +187,7 @@ sub CommandParser(CmdNum)
 					data_table$[CurrConnId]=TestStr$
 					do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
 					until rc==0
+					PrevConnId=CurrConnId
 				endif
 			else : print "-Id not correct\n"
 			endif

@@ -1,10 +1,13 @@
 //******************************************************************************
 // Definitions
 //******************************************************************************
-#define BLE_1M_PHY                    		1
-#define BLE_CODED_PHY                 		4
+#define BLE_1M_PHY                      	1
+#define BLE_2M_PHY                      	2
+#define BLE_CODED_PHY                   	4
 #define BLE_NORMAL_SCANNING           		0
 #define BLE_EXTENDED_SCANNING         		1
+#define SCAN_TYPE							BLE_EXTENDED_SCANNING
+#define BLE_PHY								BLE_CODED_PHY
 #define ENABLE_HIGH_BANDWIDTH_KEY_ID      	214    // CFG ID 214
 #define USE_STRINT_IN_EVENTS_KEY_ID         213    // CFG ID 213
 #define USE_STRING_IN_EVENTS                1      // 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
@@ -15,9 +18,8 @@
 #define scan_interval						500	
 #define scan_window							400
 #define UART_RX_BUFF						200
-#define UART_BAUDRATE 						115200
-#define U_TX_BUF							2048
-#define U_RX_BUF							2048
+#define U_SPEED 							115200
+#define U_BUF								2048
 
 // Hardcoded GATT attributes of remote BL654 running $autorun$.dle.peripheral.sb
 dim MIHandle:MIHandle = 18//Modem In handle (IF one exists)

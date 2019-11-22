@@ -36,7 +36,8 @@ FUNCTION HndlrNtfyBuf()
     IF BufferState == 1 THEN
 		TimerCancel(0)
         BufferState = 0
-        rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
+        do : rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
+		until rc==0
     // ELSE
         // rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
     ENDIF
@@ -155,7 +156,7 @@ FUNCTION HndlrAttrWrite(cHndl,aHndl,nSts)
         urx$ = ""
         BleBuf$ = ""
         // Now that everything is setup, Requst a switch to CODED PHY
-        rc = BlePhySet(ConnectionID, BLE_CODED_PHY, BLE_CODED_PHY, 0)
+        rc = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
     ELSEIF (Mode == 10) THEN
         //UART data was written
         BufferState = 0
@@ -176,8 +177,8 @@ ENDSUB
 //==============================================================================
 // This handler is called when there is a BLE message
 //==============================================================================
-function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as integer
-	select nMsgId
+function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as integer	
+	select nMsgId		
 		case BLE_EVBLEMSGID_CONNECT
 			ConnectionID = nCtx
 			print "-";integer.d'ConnToDev;"-Connectinon ";ConnectionID;" for dev №";integer.d'ad_from_table;" created\n"	
@@ -188,7 +189,14 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 			Val$ = "\01\00"
 			rc = BLEGATTCWRITE(ConnectionID, MOCCCDHandle, Val$)
 		case BLE_EVBLEMSGID_DISCONNECT
-			print "-";integer.d'DisConn;"-Disconnected!\n"
+			dim i
+			ConnectionID = nCtx
+			for i=0 to device_addr_overall-1
+			if (ConnectionID==conn_table[i]) then
+				PRINT "-";integer.d'DisConn;"-";i;"-Disconnected!\n"
+				break
+			endif
+		next
 			//BleGattcClose()
 		case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
 			ShowConnParms(ConnectionID)
@@ -207,22 +215,22 @@ dim x
 for x=0 to device_addr_overall-1 : msg_cnt[x]=1 : next //инициализация таблицы сообщений
 // Enable high bandwidth
 rc = BleHighBandwidth()
-if UartInfo(0)==0 then : rc = UartOpen(UART_BAUDRATE,U_TX_BUF,U_RX_BUF,"CN81H")
-else : UartClose() : rc = UartOpen(UART_BAUDRATE,U_TX_BUF,U_RX_BUF,"CN81H")
+if UartInfo(0)==0 then : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H")
+else : UartClose() : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H")
 endif
 rc = BleTxPowerSet(TRANSMIT_POWER) //установка мощности передатчика
 // Set Scanning PHYs to CODED PHY, enable extended scanning
 rc = BleScanConfig(0,scan_interval)
 rc = BleScanConfig(1,scan_window)
 rc = BleScanConfig(3,device_addr_overall)
-rc = BleScanConfig(4,BLE_CODED_PHY)
-rc = BleScanConfig(5,BLE_EXTENDED_SCANNING)
+rc = BleScanConfig(4,BLE_PHY)
+rc = BleScanConfig(5,SCAN_TYPE)
 // Set connection PHYs to CODED PHY, enable extended connection
-rc = BleConnectConfig(10,BLE_CODED_PHY)
-rc = BleConnectConfig(11,BLE_EXTENDED_SCANNING)
+rc = BleConnectConfig(10,BLE_PHY)
+rc = BleConnectConfig(11,SCAN_TYPE)
 rc = BleGattcOpen(4096, 0)
 //PRINT "-Modem init/Tx power="; SysInfo(2008);"\n"
-PRINT "-Hello!\n"
+PRINT "-Hello! Write 0- for help.\n"
 
 //------------------------------------------------------------------------------
 // Enable synchronous event handlers
