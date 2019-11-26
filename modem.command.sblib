@@ -2,23 +2,25 @@
 
 //Commands
 #define Help				0
-#define pHelp				" 0- *print all cmnds list\n"
+#define pHelp				" (0-) *print all cmnds list\n"
 #define ScanDev				1
-#define pScanDev			" 1- *unlimit scan BLE devices\n"
+#define pScanDev			" (1-) *unlimit scan BLE devices\n"
 #define StopScanDev			2
-#define pStopScanDev		" 2- *stop scan BLE devices\n"
+#define pStopScanDev		" (2-) *stop scan BLE devices\n"
 #define ConnToDev			3
-#define pConnToDev			" 3-c- *connect to selected device from table\n"
-#define SendToDev			4
-#define pSendToDev			" 4-c-d- *send data to selected device from table\n"
-#define DisConn				5
-#define pDisConn			" 5-c- *disconnect from selected device from table\n"
-#define DebudSwitch			6
-#define pDebudSwitch		" 6-0/1/2- *0-off debug, 1-on debug, 2-measure time between msgs\n"
-#define SendTestData		7
-#define pSendTestData		" 7-c-n- *send test string\n"
-#define ResetMdm			8
-#define pResetMdm			" 8- *reset modem\n"
+#define pConnToDev			" (3-c-) *connect to selected device from table\n"
+#define ScanServices		4
+#define pScanServices		" (4-c-) *create list of services from device\n"
+#define SendToDev			5
+#define pSendToDev			" (5-c-d-) *send data to selected device from table\n"
+#define DisConn				6
+#define pDisConn			" (6-c-) *disconnect from selected device from table\n"
+#define DebudSwitch			7
+#define pDebudSwitch		" (7-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs\n"
+#define SendTestData		8
+#define pSendTestData		" (8-c-n-) *send test string\n"
+#define ResetMdm			9
+#define pResetMdm			" (9-) *reset modem\n"
 
 //==============================================================================
 // Parsing command parametr
@@ -72,6 +74,37 @@ function SendToBle(ConnId,data$)
 	endif
 endfunc 1
 
+function HndlrPrimSvc(cHndl,svcUuid,sHndl,eHndl) as integer
+	print "SVC :";"cHndl=";cHndl;" svcUuid=";integer.h'svcUuid;" sHndl=";sHndl;" eHndl=";eHndl;"\n"
+	if sHndl==0 then 
+		print "-Scan svc complete\n"
+		exitfunc 0
+	else 
+		sAttr=sHndl
+		eAttr=eHndl
+		rc=BleDiscCharFirst(cHndl,0,sAttr,eAttr)
+		if rc!=0 then 
+			print "-Scan char abort\n" 
+		endif
+	endif
+endfunc 1
+
+function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
+	print "CHAR :";" cHndl=";cHndl;" chUuid=";integer.h' cUuid;" Props=";cProp;" valHndl=";hVal;" ISvcUuid=";isUuid;"\n"
+	IF hVal == 0 THEN
+		PRINT "-Char Scan complete\n"
+		rc=BleDiscServiceNext(cHndl)
+		if rc!=0 then : print "-Scan svc abort\n" : exitfunc 0 : endif
+		//EXITFUNC 1
+	ELSE
+		rc = BleDiscCharNext(conn_table(CurrConnId))
+		IF rc != 0 THEN
+			PRINT "-Char scan abort\n"
+			EXITFUNC 0
+		ENDIF
+	ENDIF
+endfunc 1
+
 //==============================================================================
 // Send test string 
 //==============================================================================
@@ -95,6 +128,7 @@ endfunc 1
 sub CommandParser(CmdNum)
 	select CmdNum
 		case Help
+			print "-";integer.d'CmdNum;"-List of supported commands:\n"
 			print pHelp;pScanDev;pStopScanDev;pConnToDev;pSendToDev;pDisConn;pDebudSwitch;pSendTestData;pResetMdm
 		case ScanDev
 			rc = BleScanStart(time_to_scan, 0)
@@ -128,6 +162,14 @@ sub CommandParser(CmdNum)
 				endif
 			else : print "-Id not correct\n"	
 			endif
+		case ScanServices
+			CurrConnId=str_to_id()
+			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
+				print "-";integer.d'ScanServices;"-Start scanning services:\n"
+				rc=BleDiscServiceFirst(conn_table(CurrConnId),0,0)
+				if rc==0 then : WAITEVENT : ENDIF
+				print "-All service & char finded\n" 
+			endif	
 		case SendToDev
 			CurrConnId=str_to_id()
 			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then

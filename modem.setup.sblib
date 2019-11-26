@@ -20,6 +20,7 @@
 #define UART_RX_BUFF						200
 #define U_SPEED 							115200
 #define U_BUF								2048
+#define GATT_BUF							1024
 
 // Hardcoded GATT attributes of remote BL654 running $autorun$.dle.peripheral.sb
 dim MIHandle:MIHandle = 18//Modem In handle (IF one exists)
@@ -45,6 +46,7 @@ dim urx$ : urx$ = ""                //UART read buffer
 dim BleBuf$ : BleBuf$ = ""          //VSP read buffer
 dim Separator$:Separator$="-"		//разделитель заголовок-команда-параметр
 dim rc
+dim sAttr,eAttr
 dim ad_from_table:ad_from_table=0
 dim CurrConnId:CurrConnId=0 
 dim PrevConnId:PrevConnId=0 

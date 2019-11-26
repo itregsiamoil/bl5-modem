@@ -228,7 +228,7 @@ rc = BleScanConfig(5,SCAN_TYPE)
 // Set connection PHYs to CODED PHY, enable extended connection
 rc = BleConnectConfig(10,BLE_PHY)
 rc = BleConnectConfig(11,SCAN_TYPE)
-rc = BleGattcOpen(4096, 0)
+rc = BleGattcOpen(GATT_BUF, 0)
 //PRINT "-Modem init/Tx power="; SysInfo(2008);"\n"
 PRINT "-Hello! Write 0- for help.\n"
 
@@ -239,17 +239,18 @@ PRINT "-Hello! Write 0- for help.\n"
 OnEvent	EVBLE_SCAN_TIMEOUT  	call HandlerBlrScanTimOut
 OnEvent	EVBLE_ADV_REPORT    	call HandlerAdvRpt
 OnEvent	EVBLEMSG            	call HandlerBleMsg
-OnEvent EVATTRWRITE         	CALL HndlrAttrWrite
-OnEvent EVBLE_CONN_TIMEOUT  	CALL HndlrConnTO
-OnEvent EVATTRNOTIFYEX      	CALL HndlrAttrNotifyEx      // Used if AT+CFG 213=1
-ONEVENT EVNOTIFYBUF       		CALL HndlrNtfyBuf
-//ONEVENT EVDISCON 				CALL HndlrDiscon
+OnEvent EVATTRWRITE         	call HndlrAttrWrite
+OnEvent EVBLE_CONN_TIMEOUT  	call HndlrConnTO
+OnEvent EVATTRNOTIFYEX      	call HndlrAttrNotifyEx      // Used if AT+CFG 213=1
+OnEvent EVNOTIFYBUF       		call HndlrNtfyBuf
+OnEvent EVDISCPRIMSVC 			call HndlrPrimSvc
+OnEvent EVDISCCHAR 				call HandlerCharDisc
 // UART event
 OnEvent	EVUARTRX 				call HndlrUartRx
 // BLE PHY
 OnEvent	EVBLE_PHY_UPDATED  		call HandlerPhyChngd
 OnEvent	EVBLE_PHY_REQUEST  		call HandlerPhyReq
 
-ONEVENT EVTMR0 					CALL SendKbytes
+OnEvent EVTMR0 					call SendKbytes
 
 WaitEvent // Wait for a synchronous event.
