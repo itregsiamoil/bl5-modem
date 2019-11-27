@@ -23,12 +23,9 @@
 #define GATT_BUF							1024
 
 // Hardcoded GATT attributes of remote BL654 running $autorun$.dle.peripheral.sb
-dim MIHandle:MIHandle = 18//Modem In handle (IF one exists)
-dim MOHandle:MOHandle = 16//Modem Out handle (IF one exists)
-dim RXHandle:RxHandle = 21//RX handle
-dim TXHandle:TXHandle = 23//TX handle
-dim MOCCCDHandle:MOCCCDHandle = 24//Modem Out CCCD handle (IF one exists)
-dim TXCCCDHandle:TXCCCDHandle = 19//TX CCCD handle (IF one exists)
+dim RXHandle:RxHandle = 16//RX handle (MI-18,MO-16,RX-21,TX-23)
+dim TXHandle:TXHandle = 18//TX handle
+dim TXCCCDHandle:TXCCCDHandle = 19//TX CCCD handle (MOCCCD-24)
 
 dim nBleMaxPacketLength:nBleMaxPacketLength = 27//Default maximum packet length on BL654 // The default maximum packet length on BL654 is 27
 dim nAttributeMTU:nAttributeMTU = 23//Default Maximum Transmission Unit on BL654 // The default ATT_MTU on the BL654 is 23
@@ -48,8 +45,7 @@ dim Separator$:Separator$="-"		//разделитель заголовок-ко�
 dim rc
 dim sAttr,eAttr
 dim ad_from_table:ad_from_table=0
-dim CurrConnId:CurrConnId=0 
-dim PrevConnId:PrevConnId=0 
+dim CurrConnId,PrevConnId,PrevHndl
 dim dev_cnt:dev_cnt=0
 dim conn_cnt:conn_cnt=0
 dim msg_cnt[device_addr_overall]

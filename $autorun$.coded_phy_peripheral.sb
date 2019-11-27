@@ -21,6 +21,7 @@
 #define USE_STRING_IN_EVENTS			1		// 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
 #define BLE_ENABLE_HIGH_BANDWIDTH		1		// 0: Normal Bandwidth (default), 1: High Bandwidth
 //#define BASEUUID 						"\56\9a\11\01\b8\7f\49\0c\92\cb\11\ba\5e\a5\16\7c"  //VSP base UUID
+#define BASEUUID						0x6343
 #set $cmpif,0xFF
 
 //******************************************************************************
@@ -31,9 +32,6 @@ dim BaseUUID                        	// Base UUID for the VSP service which othe
 dim svcID                           	// VSP Service ID
 dim TXchar                          	// TX characteristic
 dim RXchar                          	// RX characteristic
-dim MOchar                          	// Modem Out characteristic
-dim MIchar                          	// Modem In characteristic
-dim MIval                           	// Modem In value
 dim ConnectionID:ConnectionID = 0		// Holds the connection ID of the VSP client (if one is connected)
 dim UARTBlocked : UARTBlocked = 0   	// When set to 1 will not read data from the UART
 dim BufferState : BufferState = 0		// Status flag show availible to transmit data
@@ -80,69 +78,26 @@ ENDFUNC 0
 // Function that will create a custom VSP service with Tx/Rx characteristics
 //------------------------------------------------------------------------------
 function CreateVSPService()
-
-    // dim UUIDStr$, mdCccd, mdVal, s$, encr, RxUUID, TxUUID
-    // dim svcID     //Service ID
-  
-    // s$ = "\00" //Default value for characteristics
-  
-    // //Create the VSP service
-    // UUIDStr$ = BASEUUID
-	// BaseUUID = BleHandleUuid128(UUIDStr$)
-    // rc = BleServiceNew(1, BaseUUID, svcID) : AssertRC(rc,21)
-    // //Create the RX characteristic
-    // mdVal = BleAttrMetadata(0,1,nAttributeLength,1,rc)
-    // RxUUID = 0x2001
-    // RxUUID = BleHandleUuidSibling(BaseUUID, RxUUID)
-    // rc = BleCharNew(8, RxUUID, mdVal, 0, 0) : AssertRC(rc,22)
-    // rc = BleCharCommit(svcID, s$, RXchar) : AssertRC(rc,23)
-    // //Create the TX characteristic
-    // mdVal = BleAttrMetadata(0,0,nAttributeLength,1,rc)
-    // mdCccd = BleAttrMetadata(1,1,2,0,rc) 
-    // TxUUID = 0x2000
-    // TxUUID = BleHandleUuidSibling(BaseUUID, TxUUID)
-    // rc = BleCharNew(16, TxUUID, mdVal, mdCccd, 0) : AssertRC(rc,24)
-    // rc = BleCharCommit(svcID, s$, TXchar) : AssertRC(rc,25)
-    // //Commit the service
-    // rc = BleServiceCommit(svcID) : AssertRC(rc,26)
-	
-    dim TmpStr$, RxUUID, TxUUID, ModemInUUID, ModemOutUUID, mdVal, mdCccd, s$
-    // Base UUID
-    TmpStr$ = "569a1101b87f490c92cb11ba5ea5167c"
-    TmpStr$ = StrDehexize$(TmpStr$)
-    BaseUUID = BleHandleUuid128(TmpStr$)
-    // Setup Tx/Rx characteristics
-    TxUUID = 0x2000
-    TxUUID = BleHandleUuidSibling(BaseUUID, TxUUID)
-    RxUUID = 0x2001
-    RxUUID = BleHandleUuidSibling(BaseUUID, RxUUID)
-    // Setup Modem characteristics
-    ModemInUUID  = 0x2002
-    ModemInUUID = BleHandleUuidSibling(BaseUUID, ModemInUUID)
-    ModemOutUUID = 0x2003
-    ModemOutUUID = BleHandleUuidSibling(BaseUUID, ModemOutUUID)
-    //Create new VSP service
-    rc = BleServiceNew(1, BaseUUID, svcID)
-    rc = BleServiceCommit(svcID)
-    //Create the ModemIn characteristic
-	s$ = "\01" //Enabled by default
-    mdVal = BleAttrMetadata(0,1,2,0,rc)
-    rc = BleCharNew(8, ModemInUUID, mdVal, 0, 0)
-    rc = BleCharCommit(svcID, s$, MIchar)
-    //Create the ModemOut characteristic
-    mdVal = BleAttrMetadata(0,0,2,0,rc)
-    mdCccd = BleAttrMetadata(1,1,2,0,rc) //Metadata for CCCD attribute of Characteristic
-    rc = BleCharNew(16, ModemOutUUID, mdVal, mdCccd, 0)
-    rc = BleCharCommit(svcID, s$, MOchar)
+    dim UUIDStr$,mdCccd,mdVal,s$,encr,RxUUID,TxUUID,svcID
+    s$ = "\00" //Default value for characteristics  
+    //Create the VSP service
+	BaseUUID = BleHandleUuid16(BASEUUID)
+    rc = BleServiceNew(1, BaseUUID, svcID) : AssertRC(rc,21)
     //Create the RX characteristic
     mdVal = BleAttrMetadata(0,1,nAttributeLength,1,rc)
-    rc = BleCharNew(8, RxUUID, mdVal, 0, 0)
-    rc = BleCharCommit(svcID, s$, RXchar)
+    RxUUID = 0x6340
+    RxUUID = BleHandleUuidSibling(BaseUUID, RxUUID)
+    rc = BleCharNew(8, RxUUID, mdVal, 0, 0) : AssertRC(rc,22)
+    rc = BleCharCommit(svcID, s$, RXchar) : AssertRC(rc,23)
     //Create the TX characteristic
     mdVal = BleAttrMetadata(0,0,nAttributeLength,1,rc)
-    mdCccd = BleAttrMetadata(1,1,2,0,rc) //Metadata for CCCD attribute of Characteristic
-    rc = BleCharNew(16, TxUUID, mdVal, mdCccd, 0)
-    rc = BleCharCommit(svcID, s$, TXchar)
+    mdCccd = BleAttrMetadata(1,1,2,0,rc) 
+    TxUUID = 0x6341
+    TxUUID = BleHandleUuidSibling(BaseUUID, TxUUID)
+    rc = BleCharNew(16, TxUUID, mdVal, mdCccd, 0) : AssertRC(rc,24)
+    rc = BleCharCommit(svcID, s$, TXchar) : AssertRC(rc,25)
+    //Commit the service
+    rc = BleServiceCommit(svcID) : AssertRC(rc,26)
 endfunc 0
 
 //------------------------------------------------------------------------------
@@ -158,8 +113,9 @@ FUNCTION BleStartAdverts()
     //Init the scan report for the VSP service 
     rc = BleScanRptInit(scRpt$) : AssertRC(rc,3)
     //Advertise the 128 bit uuid in a scan report
-    rc = BleAdvRptAddUuid128(scRpt$, BaseUUID) : AssertRC(rc,4)
-	ad$="\01\02\03\04"
+    //rc = BleAdvRptAddUuid128(scRpt$, BaseUUID) : AssertRC(rc,4)
+	rc = BleAdvRptAddUuid16(scRpt$, BaseUUID,-1,-1,-1,-1,-1) : AssertRC(rc,4)
+	ad$="HELLO"
 	rc=BleAdvRptAppendAD(adRpt$,0x31,ad$) : AssertRC(rc,5)	
     //Commit the advert report
     rc = BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,6)
@@ -184,7 +140,7 @@ FUNCTION HndlrUartRx()
 					case 0
 						rc=strlen(DataToSend$)
 						StrShiftLeft(UartData$,rc)
-						#cmpif 0xFF : print "-Succs send\n"
+						#cmpif 0xFF : print "-Succs send to char:";TXchar;"\n"
 					case else
 						BufferState = 1
 						#cmpif 0xFF : print "-Ble send error! rc=";integer.h'rc;" msg-";DataToSend$;"\n"
@@ -215,6 +171,7 @@ ENDFUNC 1
 //------------------------------------------------------------------------------
 FUNCTION HndlrCharValue(nConnHandle, charHandle, offset, len, BYVAL Rd$ AS STRING)
     // Just print the data that we got from the char
+	print "charval-";charHandle;"\n"
     IF charHandle == RXchar THEN
 		PRINT Rd$
 		#cmpif 0xFF : UartData$=Rd$

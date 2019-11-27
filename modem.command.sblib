@@ -2,25 +2,29 @@
 
 //Commands
 #define Help				0
-#define pHelp				" (0-) *print all cmnds list\n"
 #define ScanDev				1
-#define pScanDev			" (1-) *unlimit scan BLE devices\n"
 #define StopScanDev			2
-#define pStopScanDev		" (2-) *stop scan BLE devices\n"
 #define ConnToDev			3
+#define ScanSvcChar			4
+#define ScanDesc			5
+#define SetupSendSvc		6
+#define SendToDev			7
+#define DisConn				8
+#define DebudSwitch			9
+#define SendTestData		10
+#define ResetMdm			11
+#define pHelp				" (0-) *print all cmnds list\n"
+#define pScanDev			" (1-) *unlimit scan BLE devices\n"
+#define pStopScanDev		" (2-) *stop scan BLE devices\n"
 #define pConnToDev			" (3-c-) *connect to selected device from table\n"
-#define ScanServices		4
 #define pScanServices		" (4-c-) *create list of services from device\n"
-#define SendToDev			5
-#define pSendToDev			" (5-c-d-) *send data to selected device from table\n"
-#define DisConn				6
-#define pDisConn			" (6-c-) *disconnect from selected device from table\n"
-#define DebudSwitch			7
-#define pDebudSwitch		" (7-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs\n"
-#define SendTestData		8
-#define pSendTestData		" (8-c-n-) *send test string\n"
-#define ResetMdm			9
-#define pResetMdm			" (9-) *reset modem\n"
+#define pScanDesc			" (5-c-) *create list of services from device\n"
+#define pSetupSendSvc		" (6-c-rx-tx-) *send data to selected device from table\n"
+#define pSendToDev			" (7-c-d-) *send data to selected device from table\n"
+#define pDisConn			" (8-c-) *disconnect from selected device from table\n"
+#define pDebudSwitch		" (9-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs\n"
+#define pSendTestData		" (10-c-n-) *send test string\n"
+#define pResetMdm			" (11-) *reset modem\n"
 
 //==============================================================================
 // Parsing command parametr
@@ -53,7 +57,7 @@ function SendToBle(ConnId,data$)
 		select rc
 			case 0
 				StrShiftLeft(data$,nAttributeLength)
-				if (debsw==1) then : print "-Succs send\n" : endif
+				if (debsw==1) then : print "-Succs send to char:";RXHandle;"\n" : endif
 			case 24614
 				print "-Connection Id not correct, rc=";integer.h'rc;"\n"
 				exitfunc 2
@@ -74,35 +78,85 @@ function SendToBle(ConnId,data$)
 	endif
 endfunc 1
 
+//==============================================================================
+// EVDISCSVC event handler
+//==============================================================================
 function HndlrPrimSvc(cHndl,svcUuid,sHndl,eHndl) as integer
-	print "SVC :";"cHndl=";cHndl;" svcUuid=";integer.h'svcUuid;" sHndl=";sHndl;" eHndl=";eHndl;"\n"
+	if cHndl!=PrevHndl then : print "-Connection: ";cHndl;"\n" : endif
+	print "-SVC:";integer.h'svcUuid;" handler=";sHndl;" to ";eHndl;"\n"
+	PrevHndl=cHndl
 	if sHndl==0 then 
-		print "-Scan svc complete\n"
+		if (debsw==1) then : print "-Scan svc complete\n" : endif
 		exitfunc 0
 	else 
 		sAttr=sHndl
 		eAttr=eHndl
 		rc=BleDiscCharFirst(cHndl,0,sAttr,eAttr)
 		if rc!=0 then 
-			print "-Scan char abort\n" 
+			if (debsw==1) then : print "-Scan char abort\n" : endif
 		endif
 	endif
 endfunc 1
 
+//==============================================================================
+// EVDISCCHAR event handler
+//==============================================================================
 function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
-	print "CHAR :";" cHndl=";cHndl;" chUuid=";integer.h' cUuid;" Props=";cProp;" valHndl=";hVal;" ISvcUuid=";isUuid;"\n"
+	if cUuid!=0 then 
+		print "--CHAR:";integer.h'cUuid
+		select cProp
+			case 2
+				print "(r)"
+			case 4
+				print "(w-w/o-resp)"
+			case 8
+				print "(w)"
+			case 16
+				print "(n-w-cccd)"
+			case 32
+				print "(i-w-cccd)"
+			case else
+				print "(";cProp;")"
+		endselect
+		print" handler=";hVal;"\n"
+	endif
 	IF hVal == 0 THEN
-		PRINT "-Char Scan complete\n"
+		if (debsw==1) then : PRINT "-Char scan complete\n" : endif
 		rc=BleDiscServiceNext(cHndl)
-		if rc!=0 then : print "-Scan svc abort\n" : exitfunc 0 : endif
-		//EXITFUNC 1
+		if rc!=0 then 
+			if (debsw==1) then : print "-Scan svc abort\n" : endif
+			exitfunc 0
+		endif
+		//EXITFUNC 0
 	ELSE
 		rc = BleDiscCharNext(conn_table(CurrConnId))
 		IF rc != 0 THEN
-			PRINT "-Char scan abort\n"
+			if (debsw==1) then : PRINT "-Char scan abort\n" : endif
 			EXITFUNC 0
 		ENDIF
 	ENDIF
+endfunc 1
+
+//==============================================================================
+// EVDISCDESC event handler
+//==============================================================================
+function HandlerDescDisc(cHndl,cUuid,hndl) as integer
+	if cUuid!=0 then 
+		print "  DESC:"
+		//print " cHndl=";cHndl
+		print " dscUuid=";integer.h' cUuid
+		print " dscHndl=";hndl;"\n"
+		IF hndl == 0 THEN
+			PRINT "-Descriptor Scan complete\n"
+			EXITFUNC 0
+		ELSE
+			rc = BleDiscDescNext(cHndl)
+			IF rc != 0 THEN
+				PRINT "-Descriptor scan abort\n"
+				EXITFUNC 0
+			ENDIF
+		ENDIF
+	endif
 endfunc 1
 
 //==============================================================================
@@ -127,9 +181,11 @@ endfunc 1
 //-------------------------------------------------------------------------------
 sub CommandParser(CmdNum)
 	select CmdNum
+		//-------------------------------------------------------------------------------
 		case Help
 			print "-";integer.d'CmdNum;"-List of supported commands:\n"
 			print pHelp;pScanDev;pStopScanDev;pConnToDev;pSendToDev;pDisConn;pDebudSwitch;pSendTestData;pResetMdm
+		//-------------------------------------------------------------------------------
 		case ScanDev
 			rc = BleScanStart(time_to_scan, 0)
 			if rc == 0 then
@@ -137,6 +193,7 @@ sub CommandParser(CmdNum)
 			else 
 				print "-";integer.d'ScanDev;"-Scan failed with error: ";integer.h'rc;"\n"
 			endif
+		//-------------------------------------------------------------------------------
 		case StopScanDev
 			rc = BleScanStop() 
 			if SysInfo(2016)==0 THEN 
@@ -150,6 +207,7 @@ sub CommandParser(CmdNum)
 				msg_cnt[i]=1
 				if (strlen(addr_table$[i])==0) then : break : endif
 			next
+		//-------------------------------------------------------------------------------
 		case ConnToDev
 			ad_from_table=str_to_id()
 			if (ad_from_table>-1)&&(ad_from_table<device_addr_overall) then
@@ -162,14 +220,42 @@ sub CommandParser(CmdNum)
 				endif
 			else : print "-Id not correct\n"	
 			endif
-		case ScanServices
+		//-------------------------------------------------------------------------------
+		case ScanSvcChar
 			CurrConnId=str_to_id()
 			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
-				print "-";integer.d'ScanServices;"-Start scanning services:\n"
+				print "-";integer.d'ScanSvcChar;"-Start scanning services and chars:\n"
 				rc=BleDiscServiceFirst(conn_table(CurrConnId),0,0)
-				if rc==0 then : WAITEVENT : ENDIF
+				if rc==0 then : WAITEVENT : endif
+				print "-";integer.d'ScanSvcChar;"-All service & char finded\n" 
+			endif
+		//-------------------------------------------------------------------------------
+		case ScanDesc
+			CurrConnId=str_to_id()
+			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
+				rc=str_to_id()
+				print "-";integer.d'ScanDesc;"-Start scanning descriptors:\n"
+				rc = BleDiscDescFirst(conn_table(CurrConnId),0,rc)
+				if rc==0 then : WAITEVENT : endif
 				print "-All service & char finded\n" 
-			endif	
+			endif
+		//-------------------------------------------------------------------------------
+		case SetupSendSvc
+			CurrConnId=str_to_id()
+			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
+				rc=str_to_id()
+				RxHandle=rc
+				print "RX svc setup to:";RxHandle;"\n"
+				rc=str_to_id()
+				TXHandle=rc
+				print "TX svc setup to:";TXHandle;"\n"
+				rc=str_to_id()
+				TXCCCDHandle=rc
+				Val$ = "\01\00"
+				rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, Val$)
+				if rc==0 then : print "CCCD enabled\n" : endif
+			endif
+		//-------------------------------------------------------------------------------
 		case SendToDev
 			CurrConnId=str_to_id()
 			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
@@ -197,6 +283,7 @@ sub CommandParser(CmdNum)
 				endif
 			else : print "-Id not correct\n"
 			endif
+		//-------------------------------------------------------------------------------
 		case DisConn
 			rc=str_to_id()
 			if (rc>-1)&&(rc<device_addr_overall) then
@@ -206,6 +293,7 @@ sub CommandParser(CmdNum)
 				endif
 			else : print "-Id not correct\n"
 			endif
+		//-------------------------------------------------------------------------------
 		case DebudSwitch	
 			rc=str_to_id()
 			select rc
@@ -220,6 +308,7 @@ sub CommandParser(CmdNum)
 					print "-";integer.d'DebudSwitch;"-Debug msg timer on\n"
 				case else
 			endselect
+		//-------------------------------------------------------------------------------
 		case SendTestData
 			CurrConnId=str_to_id()
 			SendTestFlag=1
@@ -233,8 +322,10 @@ sub CommandParser(CmdNum)
 				endif
 			else : print "-Id not correct\n"
 			endif
+		//-------------------------------------------------------------------------------
 		case ResetMdm
 			Reset(0)
+		//-------------------------------------------------------------------------------
 		case else
 			PRINT "-Unknown cmnd. ECHO=";strhexize$(urx$);"\n"
 	endselect
