@@ -21,7 +21,9 @@
 #define USE_STRING_IN_EVENTS			1		// 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
 #define BLE_ENABLE_HIGH_BANDWIDTH		1		// 0: Normal Bandwidth (default), 1: High Bandwidth
 //#define BASEUUID 						"\56\9a\11\01\b8\7f\49\0c\92\cb\11\ba\5e\a5\16\7c"  //VSP base UUID
-#define BASEUUID						0x6343
+#define BASEUUID						0x6340
+#define RXUUID							0x6341
+#define TXUUID							0x6342
 #set $cmpif,0xFF
 
 //******************************************************************************
@@ -82,17 +84,19 @@ function CreateVSPService()
     s$ = "\00" //Default value for characteristics  
     //Create the VSP service
 	BaseUUID = BleHandleUuid16(BASEUUID)
+	// UUIDStr$=BASEUUID
+	// BaseUUID = BleHandleUuid128(UUIDStr$)
     rc = BleServiceNew(1, BaseUUID, svcID) : AssertRC(rc,21)
     //Create the RX characteristic
     mdVal = BleAttrMetadata(0,1,nAttributeLength,1,rc)
-    RxUUID = 0x6340
+    RxUUID = RXUUID
     RxUUID = BleHandleUuidSibling(BaseUUID, RxUUID)
     rc = BleCharNew(8, RxUUID, mdVal, 0, 0) : AssertRC(rc,22)
     rc = BleCharCommit(svcID, s$, RXchar) : AssertRC(rc,23)
     //Create the TX characteristic
     mdVal = BleAttrMetadata(0,0,nAttributeLength,1,rc)
     mdCccd = BleAttrMetadata(1,1,2,0,rc) 
-    TxUUID = 0x6341
+    TxUUID = TXUUID
     TxUUID = BleHandleUuidSibling(BaseUUID, TxUUID)
     rc = BleCharNew(16, TxUUID, mdVal, mdCccd, 0) : AssertRC(rc,24)
     rc = BleCharCommit(svcID, s$, TXchar) : AssertRC(rc,25)

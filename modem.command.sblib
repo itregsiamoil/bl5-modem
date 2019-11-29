@@ -1,6 +1,5 @@
-//#include "modem.setup.sblib"
-
 //Commands
+#define NumCmnds			12
 #define Help				0
 #define ScanDev				1
 #define StopScanDev			2
@@ -13,18 +12,19 @@
 #define DebudSwitch			9
 #define SendTestData		10
 #define ResetMdm			11
-#define pHelp				" (0-) *print all cmnds list\n"
-#define pScanDev			" (1-) *unlimit scan BLE devices\n"
-#define pStopScanDev		" (2-) *stop scan BLE devices\n"
-#define pConnToDev			" (3-c-) *connect to selected device from table\n"
-#define pScanServices		" (4-c-) *create list of services from device\n"
-#define pScanDesc			" (5-c-) *create list of services from device\n"
-#define pSetupSendSvc		" (6-c-rx-tx-) *send data to selected device from table\n"
-#define pSendToDev			" (7-c-d-) *send data to selected device from table\n"
-#define pDisConn			" (8-c-) *disconnect from selected device from table\n"
-#define pDebudSwitch		" (9-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs\n"
-#define pSendTestData		" (10-c-n-) *send test string\n"
-#define pResetMdm			" (11-) *reset modem\n"
+dim HelpTable$[NumCmnds]
+HelpTable$[0]=" (0-) *print all comands list"
+HelpTable$[1]=" (1-) *unlimit scan BLE devices"
+HelpTable$[2]=" (2-) *stop scan BLE devices"
+HelpTable$[3]=" (3-c-) *connect to selected device from table"
+HelpTable$[4]=" (4-c-) *create list of services and characteristics from device"
+HelpTable$[5]=" (5-c-s-) *create list of descriptors from select service"
+HelpTable$[6]=" (6-c-rx-tx-ntf-) *setup RX-TX-CCCD to chat with selected device from table"
+HelpTable$[7]=" (7-c-d-) *send data to selected device from table"
+HelpTable$[8]=" (8-c-) *disconnect from selected device from table"
+HelpTable$[9]=" (9-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs"
+HelpTable$[10]=" (10-c-n-) *send test string (100*n bytes) to selected device from table"
+HelpTable$[11]=" (11-) *reset modem"
 
 //==============================================================================
 // Parsing command parametr
@@ -142,21 +142,20 @@ endfunc 1
 //==============================================================================
 function HandlerDescDisc(cHndl,cUuid,hndl) as integer
 	if cUuid!=0 then 
-		print "  DESC:"
+		print "---DESC:"
 		//print " cHndl=";cHndl
-		print " dscUuid=";integer.h' cUuid
-		print " dscHndl=";hndl;"\n"
-		IF hndl == 0 THEN
-			PRINT "-Descriptor Scan complete\n"
-			EXITFUNC 0
-		ELSE
-			rc = BleDiscDescNext(cHndl)
-			IF rc != 0 THEN
-				PRINT "-Descriptor scan abort\n"
-				EXITFUNC 0
-			ENDIF
-		ENDIF
+		print " dscUuid=";integer.h'cUuid;" dscHndl=";hndl;"\n"
 	endif
+	IF hndl == 0 THEN
+		if (debsw==1) then : PRINT "-Descriptor Scan complete\n" : endif
+		EXITFUNC 0
+	ELSE
+		rc = BleDiscDescNext(cHndl)
+		IF rc != 0 THEN
+			if (debsw==1) then : PRINT "-Descriptor scan abort\n" : endif
+			EXITFUNC 0
+		ENDIF
+	ENDIF
 endfunc 1
 
 //==============================================================================
@@ -184,7 +183,8 @@ sub CommandParser(CmdNum)
 		//-------------------------------------------------------------------------------
 		case Help
 			print "-";integer.d'CmdNum;"-List of supported commands:\n"
-			print pHelp;pScanDev;pStopScanDev;pConnToDev;pSendToDev;pDisConn;pDebudSwitch;pSendTestData;pResetMdm
+			dim z
+			for z=0 to NumCmnds-1 : print HelpTable$[z];"\n" : next
 		//-------------------------------------------------------------------------------
 		case ScanDev
 			rc = BleScanStart(time_to_scan, 0)
@@ -211,14 +211,18 @@ sub CommandParser(CmdNum)
 		case ConnToDev
 			ad_from_table=str_to_id()
 			if (ad_from_table>-1)&&(ad_from_table<device_addr_overall) then
-				rc = BleConnect(addr_table$[ad_from_table], 5000, 7500, 150000, 5000000)
-				if rc == 0 then
-					dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
-					print "-";integer.d'ConnToDev;"-Connecting to ";conn_addr$;" ...\n"
-				else
-					print "-";integer.d'ConnToDev;"-Unable to connect, error: ";integer.h'rc;"\n"
+				if CurrConnId!=PrevConnId then
+					rc = BleConnect(addr_table$[ad_from_table], 5000, 7500, 150000, 5000000)
+					if rc == 0 then
+						dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
+						print "-";integer.d'ConnToDev;"-Connecting to ";conn_addr$;" ...\n"
+					else
+						print "-";integer.d'ConnToDev;"-Unable to connect, error: ";integer.h'rc;"\n"
+					endif
+					PrevConnId=CurrConnId
+				else : print "-";integer.d'ConnToDev;"-Connection already exist"
 				endif
-			else : print "-Id not correct\n"	
+			//else : print "-";integer.d'ConnToDev;"-Id not correct\n"	
 			endif
 		//-------------------------------------------------------------------------------
 		case ScanSvcChar
@@ -234,26 +238,34 @@ sub CommandParser(CmdNum)
 			CurrConnId=str_to_id()
 			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
 				rc=str_to_id()
-				print "-";integer.d'ScanDesc;"-Start scanning descriptors:\n"
-				rc = BleDiscDescFirst(conn_table(CurrConnId),0,rc)
-				if rc==0 then : WAITEVENT : endif
-				print "-All service & char finded\n" 
+				if rc>-1 then
+					print "-";integer.d'ScanDesc;"-Start scanning descriptors:\n"
+					rc = BleDiscDescFirst(conn_table(CurrConnId),0,rc)
+					if rc==0 then : WAITEVENT : endif
+					print "-";integer.d'ScanDesc;"-All descriptors finded\n" 
+				endif
 			endif
 		//-------------------------------------------------------------------------------
 		case SetupSendSvc
 			CurrConnId=str_to_id()
 			if (CurrConnId>-1)&&(CurrConnId<device_addr_overall) then
 				rc=str_to_id()
-				RxHandle=rc
-				print "RX svc setup to:";RxHandle;"\n"
-				rc=str_to_id()
-				TXHandle=rc
-				print "TX svc setup to:";TXHandle;"\n"
-				rc=str_to_id()
-				TXCCCDHandle=rc
-				Val$ = "\01\00"
-				rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, Val$)
-				if rc==0 then : print "CCCD enabled\n" : endif
+				if rc>-1 then
+					RxHandle=rc
+					rc=str_to_id()
+					if rc>-1 then
+						TXHandle=rc
+						rc=str_to_id()
+						if rc>-1 then
+							TXCCCDHandle=rc
+							print "-";integer.d'SetupSendSvc;"-RX svc set:";RxHandle
+							print ", TX svc set:";TXHandle						
+							dim CCCD_ON$:CCCD_ON$ = "\01\00"
+							rc = BLEGATTCWRITE(conn_table(CurrConnId), TXCCCDHandle, CCCD_ON$)
+							if rc==0 then : print ", CCCD for:";TXCCCDHandle;" enabled\n" : endif
+						endif
+					endif
+				endif
 			endif
 		//-------------------------------------------------------------------------------
 		case SendToDev
@@ -281,7 +293,7 @@ sub CommandParser(CmdNum)
 					endif
 					PrevConnId=CurrConnId
 				endif
-			else : print "-Id not correct\n"
+			//else : print "-";integer.d'SendToDev;"-Id not correct\n"
 			endif
 		//-------------------------------------------------------------------------------
 		case DisConn
@@ -291,7 +303,7 @@ sub CommandParser(CmdNum)
 				if rc==0 then : print "-";integer.d'DisConn;"-Close conncection: ";conn_table(rc); "\n"
 				else : print "-";integer.d'DisConn;"-Unable to close conncection, error: ";integer.h'rc;"\n"
 				endif
-			else : print "-Id not correct\n"
+			//else : print "-";integer.d'DisConn;"-Id not correct\n"
 			endif
 		//-------------------------------------------------------------------------------
 		case DebudSwitch	
@@ -320,7 +332,7 @@ sub CommandParser(CmdNum)
 					until rc==0
 					PrevConnId=CurrConnId
 				endif
-			else : print "-Id not correct\n"
+			//else : print "-";integer.d'SendTestData;"-Id not correct\n"
 			endif
 		//-------------------------------------------------------------------------------
 		case ResetMdm
