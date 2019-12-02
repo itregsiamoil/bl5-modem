@@ -89,7 +89,6 @@ FUNCTION BleHighBandwidth()
 	dim nBandwidth
     // Get current bandwidth configuration
 	rc = NvCfgKeyGet(ENABLE_HIGH_BANDWIDTH_KEY_ID, nBandwidth)
-
     // Check if these are the values needed to achieve DLE
     IF  (nBandwidth != BLE_ENABLE_HIGH_BANDWIDTH) THEN
 		// Allow data to be thrown in messages (i.e. Use EVATTRNOTIFYEX instead of EVATTRNOTIFY)
@@ -99,7 +98,6 @@ FUNCTION BleHighBandwidth()
         // Reset the module so that the data is overwritten
         Reset(0)
     ENDIF
-
 ENDFUNC 0
 
 //==============================================================================
@@ -136,33 +134,14 @@ ENDFUNC 1
 // EVATTRWRITE - Remote characteristic written
 //------------------------------------------------------------------------------
 FUNCTION HndlrAttrWrite(cHndl,aHndl,nSts)
-	//print cHndl;"-";aHndl;"-";nSts;"\n";
-    // IF (Mode == 7) THEN
-        // //Enable TX notIFications
-        // Mode = 8
-        // Val$ = "\01\00"
-        // rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, Val$)
-    // ELSEIF (Mode == 8) THEN
-        // //Write to Modem In
-        // Mode = 9
-        // Val$ = "\01"
-        // BufferFull = 0
-        // rc = BLEGATTCWRITE(ConnectionID, MIHandle, Val$)
-    // ELSEIF (Mode == 9) THEN
-        //Now ready to send data
         BufferFull = 0
-        // BufferState = 0
-        // Mode = 10
         urx$ = ""
         BleBuf$ = ""
         // Now that everything is setup, Requst a switch to CODED PHY
         rc = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
-    //ELSEIF (Mode == 10) THEN
         //UART data was written
         BufferState = 0
         rc = HndlrUartRx()
-    //ENDIF
-
 ENDFUNC 1
 
 //------------------------------------------------------------------------------
@@ -180,33 +159,29 @@ ENDSUB
 function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as integer	
 	select nMsgId		
 		case BLE_EVBLEMSGID_CONNECT
+			rc = BleGattcOpen(GATT_BUF, 0)
 			ConnectionID = nCtx
 			print "-";integer.d'ConnToDev;"-Connectinon ";ConnectionID;" for dev №";integer.d'ad_from_table;" created\n"	
 			conn_table[ad_from_table]=ConnectionID
 			ShowConnParms(ConnectionID)	
-			Mode = 7    // This is checked in HndlrAttrWrite to move forward in state machine
-			// Enable tx notifications
-			Val$ = "\01\00"
-			rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, Val$)
+			dim CCCD_ON$:CCCD_ON$ = "\01\00"
+			rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, CCCD_ON$)
 		case BLE_EVBLEMSGID_DISCONNECT
 			dim i
 			ConnectionID = nCtx
 			for i=0 to device_addr_overall-1
-			if (ConnectionID==conn_table[i]) then
-				PRINT "-";integer.d'DisConn;"-";i;"-Disconnected!\n"
-				break
-			endif
-		next
+				if (ConnectionID==conn_table[i]) then
+					PRINT "-";integer.d'DisConn;"-";i;"-Disconnected!\n"
+					conn_table[i]=0
+					break
+				endif
+			next
 			//BleGattcClose()
 		case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
 			ShowConnParms(ConnectionID)
 		case else
 	endselect
 endfunc 1
-
-FUNCTION HndlrDiscon(BYVAL hConn AS INTEGER, BYVAL nRsn AS INTEGER) AS INTEGER 
-	PRINT "-";integer.d'DisConn;"-Connection ";hConn;" closed with code: 0x";nRsn;"\n"
-ENDFUNC 0
 
 //******************************************************************************
 // Equivalent to main() in C
@@ -228,9 +203,8 @@ rc = BleScanConfig(5,SCAN_TYPE)
 // Set connection PHYs to CODED PHY, enable extended connection
 rc = BleConnectConfig(10,BLE_PHY)
 rc = BleConnectConfig(11,SCAN_TYPE)
-rc = BleGattcOpen(GATT_BUF, 0)
-//PRINT "-Modem init/Tx power="; SysInfo(2008);"\n"
-PRINT "-Hello! Write 0- for help.\n"
+//rc = BleGattcOpen(GATT_BUF, 0)
+PRINT "-Hello!\n-Write '0-' for help, '11-' for hardware parameters\n"
 
 //------------------------------------------------------------------------------
 // Enable synchronous event handlers
@@ -251,7 +225,7 @@ OnEvent	EVUARTRX 				call HndlrUartRx
 // BLE PHY
 OnEvent	EVBLE_PHY_UPDATED  		call HandlerPhyChngd
 OnEvent	EVBLE_PHY_REQUEST  		call HandlerPhyReq
-
+// Timer for test string sending
 OnEvent EVTMR0 					call SendKbytes
-
-WaitEvent // Wait for a synchronous event.
+// Wait for a synchronous event
+WaitEvent

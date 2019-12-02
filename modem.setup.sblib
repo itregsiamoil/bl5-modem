@@ -14,45 +14,39 @@
 #define BLE_ENABLE_HIGH_BANDWIDTH         	1      // 0: medium bandwidth 1: high bandwidth
 #define TRANSMIT_POWER						8 //-40, -20, -16, -12, -8, -4, 0, 2, 4, 5, 6, 7, and 8 dBm.
 #define device_addr_overall					10
-#define time_to_scan 						0 //-unlimited
-#define scan_interval						500	
-#define scan_window							400
+#define time_to_scan 						20000 //ms
+#define scan_interval						300	
+#define scan_window							250
 #define UART_RX_BUFF						200
 #define U_SPEED 							115200
 #define U_BUF								2048
-#define GATT_BUF							1024
+#define GATT_BUF							2048
 
-// Hardcoded GATT attributes of remote BL654 running $autorun$.dle.peripheral.sb
-dim RXHandle:RxHandle = 16//RX handle (MI-18,MO-16,RX-21,TX-23)
+// Hardcoded GATT attributes of remote BL654
+dim RXHandle:RxHandle = 16//RX handle (MI-18,MO-16,RX-21,TX-23,MOCCCD-24)
 dim TXHandle:TXHandle = 18//TX handle
-dim TXCCCDHandle:TXCCCDHandle = 19//TX CCCD handle (MOCCCD-24)
-
-dim nBleMaxPacketLength:nBleMaxPacketLength = 27//Default maximum packet length on BL654 // The default maximum packet length on BL654 is 27
-dim nAttributeMTU:nAttributeMTU = 23//Default Maximum Transmission Unit on BL654 // The default ATT_MTU on the BL654 is 23
-dim nAttributeLength:nAttributeLength = 20//Default Attribute Data Length on BL654s // The default attribute length on the BL654 is 20
+dim TXCCCDHandle:TXCCCDHandle = 19//TX CCCD handle
+dim nAttributeLength:nAttributeLength = 20//Default Attribute Data Length on BL654s
 
 //******************************************************************************
 // Global Variable Declarations
 //******************************************************************************
 dim ConnectionID                    //Ble Connection Handle
-dim Mode : Mode = 0                 //Current program mode: 0 = connecting, 1 = connected, find modem in characteristic, 2 = find modem out characteristic, 3 = find RX characteristic, 4 = find TX characteristic, 5 = find modem out descriptor, 6 = find TX descriptor, 7 = enable modem out notIFications, 8 = enable TX, 9 = enable modem in status
-dim Val$                            //Value to write and read from characteristics
 dim BufferState : BufferState = 0   //Buffer state
 dim BufferFull : BufferFull = 0     //Buffer full
 dim urx$ : urx$ = ""                //UART read buffer
 dim BleBuf$ : BleBuf$ = ""          //VSP read buffer
-dim Separator$:Separator$="-"		//разделитель заголовок-команда-параметр
+dim Separator$:Separator$="-"		//разделитель команда-параметр
 dim rc
-dim sAttr,eAttr
 dim ad_from_table:ad_from_table=0
 dim CurrConnId,PrevConnId,PrevHndl
 dim dev_cnt:dev_cnt=0
 dim conn_cnt:conn_cnt=0
-dim msg_cnt[device_addr_overall]
-dim addr_table$[device_addr_overall]
-dim data_table$[device_addr_overall]
-dim conn_table[device_addr_overall]
-dim debsw:debsw=0
+dim msg_cnt[device_addr_overall]		//массив адвертайзинг сообщений под каждый адрес
+dim addr_table$[device_addr_overall]	//адреса найденных девайсов в hex
+dim data_table$[device_addr_overall]	//массив данных под каждое соединение
+dim conn_table[device_addr_overall]		//массив идентификаторов соединений
+dim debsw:debsw=0	//переключатель режимов отладки
 dim sendcount,kbytes, SendTestFlag
 dim TestStr$:TestStr$ = "1234567890qwertyuiop0987654321asdfghjkl;1234567890zxcvbnm,./1234567890qwertyuiop0987654321asdfghjkl;"
 
