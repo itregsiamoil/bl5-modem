@@ -10,20 +10,24 @@
 #define ADV_DIRECT_CONN					1
 #define ADV_EXT_CONN					6
 #define ADV_EXT_DIRECT_CONN				7
-#define ADV_TYPE						ADV_EXT_CONN
-#define BLE_PHY							BLE_CODED_PHY
+#define ADV_TYPE						ADV_CONN
+#define BLE_PHY							BLE_1M_PHY
 #define U_BUF							2048
 #define U_SPEED							115200
+#define EncryptConn						2 //2-encr, 1-open
+#define AddAppearanceToAdv				0 //0\1
 #define BleAppearance					3200	//3200-весы, 520-тэг, 128-компьютер, 64-телефонб 384-удаленное кправление, ble_types.h in SDK
+#define DevNameLength					10
 // Definitions for attribute values to achieve higher bandwidth needed for CODED PHY
 #define USE_STRINT_IN_EVENTS_KEY_ID		213		// CFG ID 213
 #define ENABLE_HIGH_BANDWIDTH_KEY_ID	214		// CFG ID 214
 #define USE_STRING_IN_EVENTS			1		// 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
-#define BLE_ENABLE_HIGH_BANDWIDTH		1		// 0: Normal Bandwidth (default), 1: High Bandwidth
-//#define BASEUUID 						"\56\9a\11\01\b8\7f\49\0c\92\cb\11\ba\5e\a5\16\7c"  //VSP base UUID
-#define BASEUUID						0x6340
+#define BLE_ENABLE_HIGH_BANDWIDTH		0		// 0: Normal Bandwidth (default), 1: High Bandwidth					
+#define BASEUUID						0x6340 //"\56\9a\11\01\b8\7f\49\0c\92\cb\11\ba\5e\a5\16\7c" VSP base UUID
 #define RXUUID							0x6341
 #define TXUUID							0x6342
+dim URI$:URI$=							"162f2f7369616d6f696c2e7275" //http://siamoil.ru (UTF-8)
+dim LESupFutr$:LESupFutr$=				"0018" //coded phy+adv ext (v6,pB,4.6 bt core specification)
 #set $cmpif,0xFF
 
 //******************************************************************************
@@ -38,7 +42,6 @@ dim ConnectionID:ConnectionID = 0		// Holds the connection ID of the VSP client 
 dim UARTBlocked : UARTBlocked = 0   	// When set to 1 will not read data from the UART
 dim BufferState : BufferState = 0		// Status flag show availible to transmit data
 dim nAttributeMTU : nAttributeMTU = 23				//Default Maximum Transmission Unit on BL654
-dim nHighBandwidth : nHighBandwidth = 0				//Default configuration, 1=High, 0=Low
 dim nAttributeLength : nAttributeLength = 20		//Default Attribute Data Length on BL654
 dim nBleMaxPacketLength : nBleMaxPacketLength = 27	//Default maximum packet length on BL654
 dim UartData$
@@ -65,14 +68,19 @@ endsub
 // This function is to enable the High Bandwidth configuration in order to achieve the long range
 //-------------------------------------------------------------------------------
 FUNCTION EnableHighBandwidth()
-    rc = NvCfgKeyGet(ENABLE_HIGH_BANDWIDTH_KEY_ID, nHighBandwidth) // Get High bandwidth value
-    IF  (nHighBandwidth != BLE_ENABLE_HIGH_BANDWIDTH) THEN
-        // Allow data to be thrown in messages (i.e. Use EVATTRNOTIFYEX instead of EVATTRNOTIFY)
-        rc = NvCfgKeySet(USE_STRINT_IN_EVENTS_KEY_ID, USE_STRING_IN_EVENTS)
+	dim HighBandwidth,StringEvent
+	rc = NvCfgKeyGet(USE_STRINT_IN_EVENTS_KEY_ID, StringEvent) // Get High bandwidth value
+	IF  (StringEvent != USE_STRING_IN_EVENTS) THEN
+		// Allow data to be thrown in messages (i.e. Use EVATTRNOTIFYEX instead of EVATTRNOTIFY)
+		rc = NvCfgKeySet(USE_STRINT_IN_EVENTS_KEY_ID, USE_STRING_IN_EVENTS)
+		Reset(0)
+    ENDIF
+    rc = NvCfgKeyGet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HighBandwidth) // Get High bandwidth value
+    IF  (HighBandwidth != BLE_ENABLE_HIGH_BANDWIDTH) THEN
         // Change the bandwidth configuration to HIGH (6 packets per interval)
         rc = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, BLE_ENABLE_HIGH_BANDWIDTH)
-        // Reset the module so that the data is overwritten
-        Reset(0)
+        // Reset the module so that the data is overwritten  
+		Reset(0)		
     ENDIF
 ENDFUNC 0
 
@@ -80,7 +88,7 @@ ENDFUNC 0
 // Function that will create a custom VSP service with Tx/Rx characteristics
 //------------------------------------------------------------------------------
 function CreateVSPService()
-    dim UUIDStr$,mdCccd,mdVal,s$,encr,RxUUID,TxUUID,svcID
+    dim UUIDStr$,mdCccd,mdVal,s$,RxUUID,TxUUID,svcID,mdrxDesc,rxDesc$,mdtxDesc,txDesc$
     s$ = "\00" //Default value for characteristics  
     //Create the VSP service
 	BaseUUID = BleHandleUuid16(BASEUUID)
@@ -92,6 +100,9 @@ function CreateVSPService()
     RxUUID = RXUUID
     RxUUID = BleHandleUuidSibling(BaseUUID, RxUUID)
     rc = BleCharNew(8, RxUUID, mdVal, 0, 0) : AssertRC(rc,22)
+	mdrxDesc=BleAttrMetadata(1,0,nAttributeLength,1,rc)
+	rxDesc$="RX data"
+	rc=BleCharDescUserDesc(rxDesc$,mdrxDesc)
     rc = BleCharCommit(svcID, s$, RXchar) : AssertRC(rc,23)
     //Create the TX characteristic
     mdVal = BleAttrMetadata(0,0,nAttributeLength,1,rc)
@@ -99,6 +110,9 @@ function CreateVSPService()
     TxUUID = TXUUID
     TxUUID = BleHandleUuidSibling(BaseUUID, TxUUID)
     rc = BleCharNew(16, TxUUID, mdVal, mdCccd, 0) : AssertRC(rc,24)
+	mdtxDesc=BleAttrMetadata(1,0,nAttributeLength,1,rc)
+	txDesc$="TX data"
+	rc=BleCharDescUserDesc(txDesc$,mdtxDesc)
     rc = BleCharCommit(svcID, s$, TXchar) : AssertRC(rc,25)
     //Commit the service
     rc = BleServiceCommit(svcID) : AssertRC(rc,26)
@@ -109,23 +123,25 @@ endfunc 0
 //------------------------------------------------------------------------------
 FUNCTION BleStartAdverts()
     DIM nMinConnInterval, nMaxConnInterval
-	dim scRpt$, adRpt$, UUIDStr$, ad$	
+	dim scRpt$, adRpt$, UUIDStr$	
 	// Register GAP service with device name and connection intervals
     rc = BleGapSvcInit(DevName$, 0, BleAppearance, 7500, 10000, 4000000, 0) : AssertRC(rc,1)
 	//Initialise the Advert report (no appearance AD)
-    rc = BleAdvRptInit(adRpt$, 2, 1, 10) : AssertRC(rc,2)
+    rc = BleAdvRptInit(adRpt$, 6, AddAppearanceToAdv, DevNameLength) : AssertRC(rc,2)
     //Init the scan report for the VSP service 
     rc = BleScanRptInit(scRpt$) : AssertRC(rc,3)
     //Advertise the 128 bit uuid in a scan report
     //rc = BleAdvRptAddUuid128(scRpt$, BaseUUID) : AssertRC(rc,4)
 	rc = BleAdvRptAddUuid16(scRpt$, BaseUUID,-1,-1,-1,-1,-1) : AssertRC(rc,4)
-	ad$="HELLO"
-	rc=BleAdvRptAppendAD(adRpt$,0x31,ad$) : AssertRC(rc,5)	
+	dim text1$:text1$=strdehexize$(LESupFutr$)
+	rc=BleAdvRptAppendAD(adRpt$,0x27,text1$) : AssertRC(rc,5)
+	dim text2$:text2$=strdehexize$(URI$)
+	rc=BleAdvRptAppendAD(adRpt$,0x24,text2$) : AssertRC(rc,6)
     //Commit the advert report
-    rc = BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,6)
+    rc = BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,7)
     // Start Ble adverts
     dim Addr$ : Addr$ = " "
-    rc = BleAdvertStart(ADV_TYPE, Addr$, 100, 0, 0) : AssertRC(rc,7)
+    rc = BleAdvertStart(ADV_TYPE, Addr$, 100, 0, 0) : AssertRC(rc,8)
 ENDFUNC 0
 
 //------------------------------------------------------------------------------
@@ -175,7 +191,7 @@ ENDFUNC 1
 //------------------------------------------------------------------------------
 FUNCTION HndlrCharValue(nConnHandle, charHandle, offset, len, BYVAL Rd$ AS STRING)
     // Just print the data that we got from the char
-	print "charval-";charHandle;"\n"
+	print "charvalue-";charHandle;"\n"
     IF charHandle == RXchar THEN
 		PRINT Rd$
 		#cmpif 0xFF : UartData$=Rd$

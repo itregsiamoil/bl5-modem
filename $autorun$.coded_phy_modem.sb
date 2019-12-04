@@ -8,21 +8,36 @@ function HandlerAdvRpt() as integer
 	dim ndisc,rsi,ad$,dta$
 	rc = BleScanGetAdvReport(ad$,dta$,ndisc,rsi)
 	while (rc==0)
-		dim i,new_dev_flag
-		new_dev_flag = 1
-		for i=0 to device_addr_overall-1			
+		dim i
+		for i=0 to device_addr_overall-1
 			rc=StrCmp(ad$,addr_table$[i])
-			if (rc==0) then 
+			if (rc==0) then			//print device address once
 				if (msg_cnt[i]==1) then 
-					print "-";integer.d'ScanDev;"-Device №";i;" found: "; strhexize$(addr_table$[i]);" "; strhexize$(dta$);" ";ndisc;" RSSI=";rsi;"\n"
+					print "-";integer.d'ScanDev;"-Device №";i;" found: "; strhexize$(addr_table$[i]);" ";ndisc;" RSSI=";rsi//;"\n"					
+					if strlen(adv_table$[i])==0 then : print " NULL\n"
+					else : print " ";adv_table$[i];"\n"//;"("; strhexize$(name$);")\n"
+					endif
 				endif
 				msg_cnt[i]=msg_cnt[i]+1
 				break
 			endif
 		next
-		if dev_cnt==device_addr_overall then : dev_cnt=0 : endif //адреса пишутся в таблицу циклически после device_addr_overall->0 и тд
-		if (rc!=0) then
+		if dev_cnt==device_addr_overall then : dev_cnt=0 : endif //address table limited to device_addr_overall, 0-device_addr_overall-0
+		if (rc!=0) then				//add new address in table
 			addr_table$[dev_cnt]=ad$
+			dim size,type,name$
+			if (debsw==1) then : print "-dta ";dta$ : endif
+			while type!=9
+				size=strgetchr(dta$,0)
+				if (debsw==1) then : print "-size ";size : endif
+				type=strgetchr(dta$,1)
+				if (debsw==1) then : print "-type ";type : endif
+				if type!=9 then : strshiftleft(dta$,size+1)
+				else : adv_table$[dev_cnt]=mid$(dta$,2,size-1) : break
+				endif
+				if strlen(dta$)==0 then : break : endif
+			endwhile
+			type=0 : size=0
 			dev_cnt=dev_cnt+1
 		endif	
 		rc = BleScanGetAdvReport(ad$,dta$,ndisc,rsi)		
@@ -86,17 +101,19 @@ ENDFUNC 1
 // This function is used to configure the BL654 to use high bandwidth
 //-------------------------------------------------------------------------------
 FUNCTION BleHighBandwidth()
-	dim nBandwidth
-    // Get current bandwidth configuration
-	rc = NvCfgKeyGet(ENABLE_HIGH_BANDWIDTH_KEY_ID, nBandwidth)
-    // Check if these are the values needed to achieve DLE
-    IF  (nBandwidth != BLE_ENABLE_HIGH_BANDWIDTH) THEN
+	dim HighBandwidth,StringEvent
+	rc = NvCfgKeyGet(USE_STRINT_IN_EVENTS_KEY_ID, StringEvent) // Get High bandwidth value
+	IF  (StringEvent != USE_STRING_IN_EVENTS) THEN
 		// Allow data to be thrown in messages (i.e. Use EVATTRNOTIFYEX instead of EVATTRNOTIFY)
-        rc = NvCfgKeySet(USE_STRINT_IN_EVENTS_KEY_ID, USE_STRING_IN_EVENTS)
-        // Change the bandwidth configuration to HIGH
-        rc = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, BLE_ENABLE_HIGH_BANDWIDTH)
-        // Reset the module so that the data is overwritten
-        Reset(0)
+		rc = NvCfgKeySet(USE_STRINT_IN_EVENTS_KEY_ID, USE_STRING_IN_EVENTS)
+		Reset(0)
+    ENDIF
+    rc = NvCfgKeyGet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HighBandwidth) // Get High bandwidth value
+    IF  (HighBandwidth != HIGH_BANDWIDTH) THEN
+        // Change the bandwidth configuration to HIGH (6 packets per interval)
+        rc = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HIGH_BANDWIDTH)
+        // Reset the module so that the data is overwritten  
+		Reset(0)		
     ENDIF
 ENDFUNC 0
 
@@ -104,7 +121,8 @@ ENDFUNC 0
 // This handler is called when there is a scan attempt timeout
 //==============================================================================
 function HandlerBlrScanTimOut() as integer
-	print "-";integer.d'ScanDev;"-Scanning stopped via timeout\n"
+	print "-";integer.d'StopScanDev;"-Scanning stopped via timeout\n"
+	CommandParser(2)
 endfunc 1
 
 //==============================================================================
@@ -135,12 +153,11 @@ ENDFUNC 1
 //------------------------------------------------------------------------------
 FUNCTION HndlrAttrWrite(cHndl,aHndl,nSts)
         BufferFull = 0
+		BufferState = 0
         urx$ = ""
         BleBuf$ = ""
         // Now that everything is setup, Requst a switch to CODED PHY
-        rc = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
-        //UART data was written
-        BufferState = 0
+        //rc = BlePhySet(cHndl, BLE_PHY, BLE_PHY, 0)
         rc = HndlrUartRx()
 ENDFUNC 1
 

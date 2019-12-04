@@ -1,5 +1,5 @@
 //Commands
-#define NumCmnds			14
+#define NumCmnds			15
 #define Help				0
 #define ScanDev				1
 #define StopScanDev			2
@@ -12,8 +12,9 @@
 #define DisConn				9
 #define DebudSwitch			10
 #define ModemParams			11
-#define ResetMdm			12
-#define StopApp				13
+#define StopApp				12
+#define ChangePhy			13
+#define ResetMdm			14
 dim HelpTable$[NumCmnds]
 HelpTable$[0]=" (0-) *print all comands list"
 HelpTable$[1]=" (1-) *unlimit scan BLE devices"
@@ -25,10 +26,11 @@ HelpTable$[6]=" (6-conn-rx-tx-ntf-) *setup RX-TX-CCCD to chat with selected devi
 HelpTable$[7]=" (7-conn-data-) *send data to selected device from table"
 HelpTable$[8]=" (8-conn-n-) *send test string (100*n bytes) to selected device from table"
 HelpTable$[9]=" (9-conn-) *disconnect from selected device from table"
-HelpTable$[11]=" (10-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs"
-HelpTable$[10]=" (11-) *show modem parameters"
-HelpTable$[12]=" (12-) *reset modem"
-HelpTable$[13]=" (13-) *exit app to AT mode, RESUME to continue run app"
+HelpTable$[10]=" (10-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs"
+HelpTable$[11]=" (11-) *show modem parameters"
+HelpTable$[12]=" (12-) *exit app to AT mode, RESUME to continue run app"
+HelpTable$[13]=" (13-) *change modem phy level"
+HelpTable$[14]=" (14-) *reset modem"
 
 //==============================================================================
 // Parsing command parametr
@@ -115,7 +117,7 @@ endfunc 1
 //==============================================================================
 function HndlrPrimSvc(cHndl,svcUuid,sHndl,eHndl) as integer
 	if cHndl!=PrevHndl then : print "-";integer.d'ScanSvcChar;"-Connection: ";cHndl;"\n" : endif
-	print "-";integer.d'ScanSvcChar;"-SVC: ";integer.h'svcUuid;" handler=";sHndl;" to ";eHndl;"\n"
+	print "-";integer.d'ScanSvcChar;"-SVC-";integer.h'svcUuid;" handler=";sHndl;" to ";eHndl;"\n"
 	PrevHndl=cHndl
 	if sHndl==0 then 
 		if (debsw==1) then : print "-Scan svc complete\n" : endif
@@ -133,7 +135,7 @@ endfunc 1
 //==============================================================================
 function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
 	if cUuid!=0 then 
-		print "-";integer.d'ScanSvcChar;"-CHAR: ";integer.h'cUuid
+		print "-";integer.d'ScanSvcChar;"-CHAR-";integer.h'cUuid
 		select cProp
 			case 2
 				print "(r)"
@@ -141,10 +143,14 @@ function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
 				print "(w-w/o-resp)"
 			case 8
 				print "(w)"
+			case 10
+				print "(r/w)"	
 			case 16
 				print "(n-w-cccd)"
 			case 32
 				print "(i-w-cccd)"
+			case 48
+				print "(n/i-w-cccd)"
 			case else
 				print "(";cProp;")"
 		endselect
@@ -172,7 +178,7 @@ endfunc 1
 //==============================================================================
 function HandlerDescDisc(cHndl,cUuid,hndl) as integer
 	if cUuid!=0 then 
-		print "-";integer.d'ScanDesc;"-DESC: "
+		print "-";integer.d'ScanDesc;"-DESC-"
 		//print " cHndl=";cHndl
 		print " dscUuid=";integer.h'cUuid;" dscHndl=";hndl;"\n"
 	endif
@@ -202,7 +208,7 @@ sub CommandParser(CmdNum)
 		case ScanDev
 			rc = BleScanStart(time_to_scan, 0)
 			if rc == 0 then
-				print "-";integer.d'ScanDev;"-Scan started over CODED PHY\n"
+				print "-";integer.d'ScanDev;"-Scan started\n"
 			else 
 				print "-";integer.d'ScanDev;"-Scan failed with error: ";integer.h'rc;"\n"
 			endif
@@ -216,7 +222,7 @@ sub CommandParser(CmdNum)
 			print "-";integer.d'StopScanDev;"-";dev_cnt;" device in table: \n"
 			dim i
 			for i=0 to dev_cnt-1
-				print "-";integer.d'StopScanDev;"-";i;"-"; strhexize$(addr_table$[i]);"-";msg_cnt[i];"\n"
+				print "-";integer.d'StopScanDev;"-";i;"-"; strhexize$(addr_table$[i]);"-";msg_cnt[i];"-";adv_table$[i];"\n"
 				msg_cnt[i]=1
 				if (strlen(addr_table$[i])==0) then : break : endif
 			next
@@ -336,14 +342,15 @@ sub CommandParser(CmdNum)
 			if CurrConnId==-1 then : break : endif
 			rc=CheckConnId(DisConn,CurrConnId)
 			if rc>-1 then
-				rc = BleDisconnect(conn_table(rc))
-				if rc==0 then : print "-";integer.d'DisConn;"-Close conncection: ";conn_table(rc); "\n"
+				rc = BleDisconnect(conn_table(CurrConnId))
+				if rc==0 then : print "-";integer.d'DisConn;"-Close conncection: ";conn_table(CurrConnId);"\n"
 				else : print "-";integer.d'DisConn;"-Unable to close conncection, error: ";integer.h'rc;"\n"
 				endif
 			endif
 		//-------------------------------------------------------------------------------
 		case DebudSwitch	
 			rc=str_to_id()
+			if rc==-1 then : break : endif
 			select rc
 				case 0
 					debsw=rc
@@ -370,6 +377,15 @@ sub CommandParser(CmdNum)
 			z=fw
 			print " FW version=";w;".";x;".";y;".";z;"\n"
 			print " Tx power="; SysInfo(2008);"\n"
+			select BLE_PHY
+				case BLE_1M_PHY
+					print " PHY=BLE_1M_PHY\n"
+				case BLE_2M_PHY
+					print " PHY=BLE_2M_PHY\n"
+				case BLE_CODED_PHY
+					print " PHY=BLE_CODED_PHY\n"
+				case else
+			endselect
 			print " Flash DATA total="; SysInfo(601);" free="; SysInfo(602);"\n"
 			print " Flash FAT total="; SysInfo(611);" free="; SysInfo(612);"\n"
 			print " Flash NV total="; SysInfo(631);" free="; SysInfo(632);"\n"
@@ -404,11 +420,38 @@ sub CommandParser(CmdNum)
 			v=v/1000.0
 			print " Supply voltage=";float.f'v;"\n"
 		//-------------------------------------------------------------------------------
-		case ResetMdm
-			Reset(0)
-		//-------------------------------------------------------------------------------
 		case StopApp
 			STOP
+		//-------------------------------------------------------------------------------
+		case ChangePhy
+			rc=str_to_id()
+			if rc==-1 then : break : endif
+			select rc
+				case 1
+					BLE_PHY=BLE_1M_PHY
+					SCAN_TYPE=BLE_NORMAL_SCANNING
+					HIGH_BANDWIDTH=0
+					print "-PHY changed to LE 1M\n"
+				case 2
+					BLE_PHY=BLE_2M_PHY
+					print "-PHY changed to LE 2M\n"
+				case 3
+					BLE_PHY=BLE_CODED_PHY
+					SCAN_TYPE=BLE_EXTENDED_SCANNING
+					HIGH_BANDWIDTH=1
+					print "-PHY changed to LE CODED PHY\n"
+				case else
+			endselect
+			rc = BleScanStop() 
+			rc = BleScanConfig(4,BLE_PHY)
+			rc = BleScanConfig(5,SCAN_TYPE)
+			// Set connection PHYs to CODED PHY, enable extended connection
+			rc = BleConnectConfig(10,BLE_PHY)
+			rc = BleConnectConfig(11,SCAN_TYPE)
+			rc = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
+		//-------------------------------------------------------------------------------
+		case ResetMdm
+			Reset(0)
 		//-------------------------------------------------------------------------------
 		case else
 			PRINT "-Unknown cmnd. ECHO=";strhexize$(urx$);"\n"
