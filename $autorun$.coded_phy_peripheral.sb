@@ -48,14 +48,6 @@ dim UartData$
 dim DevName$ : DevName$ = DeviceName
 
 //------------------------------------------------------------------------------
-// Register Error Handler as early as possible
-//------------------------------------------------------------------------------
-sub HandlerOnErr()
-    print "\n OnErr - ";GetLastError();"\n"
-endsub
-onerror next HandlerOnErr
-
-//------------------------------------------------------------------------------
 // Assert to check that a resultCode is 0 which means success
 //------------------------------------------------------------------------------
 sub AssertRC(rc, tag)
@@ -203,14 +195,14 @@ ENDFUNC 1
 // EVBLE_PHY_UPDATED - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyChngd(BYVAL hConn, BYVAL nStatus, BYVAL PhyTx, BYVAL PhyRx)
-    print "## PHY Changed: Status: ";integer.h' nStatus;" - PhyTx=";PhyTx;" PhyRx =";PhyRx;"\n"
+    print "-PHY Changed-Status: ";integer.h' nStatus;" - PhyTx=";PhyTx;" PhyRx =";PhyRx;"\n"
 endfunc 1
 
 //==============================================================================
 // EVBLE_PHY_REQUEST - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
-    print "## PHY Request - PhyTx=";PhyTx;" PhyRx =";PhyRx;"\n"
+    print "-PHY Request-PhyTx=";PhyTx;" PhyRx =";PhyRx;"\n"
     // Accept the PHY requested by the remote device
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
@@ -221,7 +213,7 @@ endfunc 1
 SUB ShowConnParms()
     DIM intrvl,sprvto,slat
     rc = BleGetCurConnParms(ConnectionID,intrvl,sprvto,slat)
-    #cmpif 0xFF : print "## ConnParms :: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
+    #cmpif 0xFF : print "-ConnParms-Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
 ENDSUB
 
 //------------------------------------------------------------------------------
@@ -229,28 +221,16 @@ ENDSUB
 //------------------------------------------------------------------------------
 #define BLE_EVBLEMSGID_CONNECT                  0   //nCtx = connection handle
 #define BLE_EVBLEMSGID_DISCONNECT               1   //nCtx = connection handle
-#define BLE_EVBLEMSGID_SERVICE_ERROR            4   //nCtx = resultcode
-#define BLE_EVBLEMSGID_DISPLAY_PASSKEY          9   //nCtx = passcode to display
-#define BLE_EVBLEMSGID_NEW_BOND                 10  //nCtx = connection handle
-#define BLE_EVBLEMSGID_AUTH_KEY_REQUEST         11  //nCtx = 1 for passkey, 2 for 16 byte OOB data
-#define BLE_EVBLEMSGID_HRS_NOTIFICATION_STATE   12  //nCtx = new notification state 0=off, 1=on
 #define BLE_EVBLEMSGID_CONN_PARMS_UPDATE        14  //nCtx = connection handle
-#define BLE_EVBLEMSGID_CONN_PARMS_UPDATE_FAIL   15  //nCtx = connection handle
-#define BLE_EVBLEMSGID_CONN_TO_BONDED_MASTER    16  //nCtx = connection handle
-#define BLE_EVBLEMSGID_UPDATED_BOND             17  //nCtx = connection handle
-#define BLE_EVBLEMSGID_ENCRYPTED                18  //nCtx = connection handle
-#define BLE_EVBLEMSGID_POWER_FAILURE_WARNING    19  //nCtx = current supply voltage
-#define BLE_EVBLEMSGID_UNENCRYPTED              20  //nCtx = connection handle
-#define BLE_EVBLEMSGID_DEVICENAME_WRITE         21  //nCtx = connection handle
 //------------------------------------------------------------------------------
 function HndlrBleMsg(nMsgId, nCtx)
     select nMsgId
     case BLE_EVBLEMSGID_CONNECT
-        PRINT "## Connected\n"
+        PRINT "-Connected\n"
         ConnectionID = nCtx
         ShowConnParms()
     case BLE_EVBLEMSGID_DISCONNECT
-        PRINT "## Disconnected!\n"
+        PRINT "-Disconnected!\n"
         dim Addr$ : Addr$ = ""
         rc = BleAdvertStart(ADV_TYPE, Addr$, 100, 0, 0)
 		ConnectionID = 0
@@ -261,7 +241,7 @@ function HndlrBleMsg(nMsgId, nCtx)
 endfunc 1
 
 //******************************************************************************
-// Start up code from here -equivalent to main() in a 'C' application
+// main()
 //******************************************************************************
 UARTClose()
 rc = UartOpen(U_SPEED, U_BUF, U_BUF, "CN81H")
