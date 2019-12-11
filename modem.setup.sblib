@@ -3,7 +3,7 @@
 //******************************************************************************
 #define BLE_1M_PHY                      	1
 #define BLE_2M_PHY                      	2
-#define BLE_CODED_PHY                   	4
+#define BLE_CODED_PHY                   	3
 #define BLE_NORMAL_SCANNING           		0
 #define BLE_EXTENDED_SCANNING         		1
 #define ENABLE_HIGH_BANDWIDTH_KEY_ID      	214    // CFG ID 214
@@ -12,12 +12,14 @@
 #define TRANSMIT_POWER						8 //-40, -20, -16, -12, -8, -4, 0, 2, 4, 5, 6, 7, and 8 dBm.
 #define device_addr_overall					10
 #define time_to_scan 						20000 //ms
-#define scan_interval						300	
+#define scan_interval						300
 #define scan_window							250
 #define UART_RX_BUFF						200
 #define U_SPEED 							115200
 #define U_BUF								2048
 #define GATT_BUF							2048
+#define minConnInterval						7500
+#define maxConnInterval						150000
 dim SCAN_TYPE:SCAN_TYPE=					BLE_EXTENDED_SCANNING
 dim BLE_PHY:BLE_PHY=						BLE_CODED_PHY
 dim HIGH_BANDWIDTH:HIGH_BANDWIDTH=			1// 0: medium bandwidth 1: high bandwidth
@@ -31,24 +33,22 @@ dim nAttributeLength:nAttributeLength = 20//Default Attribute Data Length on BL6
 //******************************************************************************
 // Global Variable Declarations
 //******************************************************************************
-dim ConnectionID                    //Ble Connection Handle
-dim BufferState : BufferState = 0   //Buffer state
-dim BufferFull : BufferFull = 0     //Buffer full
-dim urx$ : urx$ = ""                //UART read buffer
-dim BleBuf$ : BleBuf$ = ""          //VSP read buffer
-dim Separator$:Separator$="-"		//разделитель команда-параметр
-dim rc
 dim ad_from_table:ad_from_table=0
-dim CurrConnId,PrevConnId,PrevHndl
 dim dev_cnt:dev_cnt=0
 dim conn_cnt:conn_cnt=0
+dim BufferState : BufferState = 0   	//Buffer state
+dim BufferFull : BufferFull = 0     	//Buffer full
+dim debsw:debsw=0						//переключатель режимов отладки
+dim Separator$:Separator$="-"			//разделитель команда-параметр
+dim urx$ : urx$ = ""                	//UART read buffer
+dim BleBuf$ : BleBuf$ = ""          	//VSP read buffer
 dim msg_cnt[device_addr_overall]		//массив количества адвертайзинг сообщений под каждый адрес
 dim adv_table$[device_addr_overall]		//массив данных адвертайзинг сообщений под каждый адрес
 dim addr_table$[device_addr_overall]	//адреса найденных девайсов в hex
 dim data_table$[device_addr_overall]	//массив данных под каждое соединение
 dim conn_table[device_addr_overall]		//массив идентификаторов соединений
-dim debsw:debsw=0	//переключатель режимов отладки
-dim sendcount,kbytes, SendTestFlag
+dim rc,ConnectionID,CurrConnId,PrevConnId,PrevHndl
+dim sendcount,kbytes,SendTestFlag
 dim TestStr$:TestStr$ = "1234567890qwertyuiop0987654321asdfghjkl;1234567890zxcvbnm,./1234567890qwertyuiop0987654321asdfghjkl;"
 
 //BLE EVENT MSG IDs

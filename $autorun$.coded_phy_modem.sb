@@ -1,47 +1,61 @@
 #include "modem.setup.sblib"
 #include "modem.command.sblib"
 
+sub AdvertProcessing (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$)
+	dim i
+	for i=0 to device_addr_overall-1
+		rc=StrCmp(ad$,addr_table$[i])
+		if (rc==0) then			//print device address once
+			if (msg_cnt[i]==1) then 
+				print "-";integer.d'ScanDev;"-Device №";i;" found: "; strhexize$(addr_table$[i]);" RSSI=";rsi//;"\n"					
+				if strlen(adv_table$[i])==0 then : print " NULL\n"
+				else : print " ";adv_table$[i];"\n"//;"("; strhexize$(name$);")\n"
+				endif
+			endif
+			msg_cnt[i]=msg_cnt[i]+1
+			break
+		endif
+	next
+	if dev_cnt==device_addr_overall then : dev_cnt=0 : endif //address table limited to device_addr_overall, 0-device_addr_overall-0
+	if (rc!=0) then				//add new address in table
+		addr_table$[dev_cnt]=ad$
+		dim size,type,name$
+		if (debsw==1) then : print "-dta ";dta$ : endif
+		while type!=9
+			size=strgetchr(dta$,0)
+			if (debsw==1) then : print "-size ";size : endif
+			type=strgetchr(dta$,1)
+			if (debsw==1) then : print "-type ";type : endif
+			if type!=9 then : strshiftleft(dta$,size+1)
+			else : adv_table$[dev_cnt]=mid$(dta$,2,size-1) : break
+			endif
+			if strlen(dta$)==0 then : break : endif
+		endwhile
+		type=0 : size=0
+		dev_cnt=dev_cnt+1
+	endif
+endsub
+
 //==============================================================================
-// This handler is called when there is an advert report waiting to be read
+// Handler for reading advert report
 //==============================================================================
 function HandlerAdvRpt() as integer
-	dim ndisc,rsi,ad$,dta$
-	rc = BleScanGetAdvReport(ad$,dta$,ndisc,rsi)
+	dim ndisc,rsi,ad$,dta$,advtype,advchan,mdata$
+	rc = BleScanGetAdvReportEx(advtype,ad$,dta$,ndisc,rsi,advchan)
 	while (rc==0)
-		dim i
-		for i=0 to device_addr_overall-1
-			rc=StrCmp(ad$,addr_table$[i])
-			if (rc==0) then			//print device address once
-				if (msg_cnt[i]==1) then 
-					print "-";integer.d'ScanDev;"-Device №";i;" found: "; strhexize$(addr_table$[i]);" ";ndisc;" RSSI=";rsi//;"\n"					
-					if strlen(adv_table$[i])==0 then : print " NULL\n"
-					else : print " ";adv_table$[i];"\n"//;"("; strhexize$(name$);")\n"
-					endif
-				endif
-				msg_cnt[i]=msg_cnt[i]+1
-				break
-			endif
-		next
-		if dev_cnt==device_addr_overall then : dev_cnt=0 : endif //address table limited to device_addr_overall, 0-device_addr_overall-0
-		if (rc!=0) then				//add new address in table
-			addr_table$[dev_cnt]=ad$
-			dim size,type,name$
-			if (debsw==1) then : print "-dta ";dta$ : endif
-			while type!=9
-				size=strgetchr(dta$,0)
-				if (debsw==1) then : print "-size ";size : endif
-				type=strgetchr(dta$,1)
-				if (debsw==1) then : print "-type ";type : endif
-				if type!=9 then : strshiftleft(dta$,size+1)
-				else : adv_table$[dev_cnt]=mid$(dta$,2,size-1) : break
-				endif
-				if strlen(dta$)==0 then : break : endif
-			endwhile
-			type=0 : size=0
-			dev_cnt=dev_cnt+1
-		endif	
-		rc = BleScanGetAdvReport(ad$,dta$,ndisc,rsi)		
+		AdvertProcessing (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$)	
+		rc = BleScanGetAdvReportEx(advtype,ad$,dta$,ndisc,rsi,advchan)		
 	endwhile
+endfunc 1
+
+//==============================================================================
+// Handler for reading extension advert report
+//==============================================================================
+function HandlerExtAdvRpt(BYVAL ad$ AS STRING,BYVAL dta$ AS STRING,BYVAL rsi AS INTEGER,BYVAL mdata$ AS STRING)
+	AdvertProcessing (ad$,dta$,rsi,0,0,0,mdata$)
+	//print "ad=";ad$;"dta=";dta$;"rssi=";rsi
+	//rc=BleExtRptMetadata(mdata$,3)
+	//print "mdata=";mdata$;"\n"
 endfunc 1
 
 //------------------------------------------------------------------------------
@@ -229,6 +243,7 @@ PRINT "-Hello!\n-Write '0-' for help, '11-' for hardware parameters\n"
 // Generic BLE events
 OnEvent	EVBLE_SCAN_TIMEOUT  	call HandlerBlrScanTimOut
 OnEvent	EVBLE_ADV_REPORT    	call HandlerAdvRpt
+OnEvent	EVBLE_EXTADV_RPT    	call HandlerExtAdvRpt
 OnEvent	EVBLEMSG            	call HandlerBleMsg
 OnEvent EVATTRWRITE         	call HndlrAttrWrite
 OnEvent EVBLE_CONN_TIMEOUT  	call HndlrConnTO

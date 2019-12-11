@@ -206,7 +206,9 @@ sub CommandParser(CmdNum)
 			for j=0 to NumCmnds-1 : print HelpTable$[j];"\n" : next
 		//-------------------------------------------------------------------------------
 		case ScanDev
-			rc = BleScanStart(time_to_scan, 0)
+			dim sphy
+			if BLE_PHY==BLE_CODED_PHY then : sphy=2 : else : sphy=1 : endif
+			rc = BleScanStartEx(time_to_scan,sphy,"",0)
 			if rc == 0 then
 				print "-";integer.d'ScanDev;"-Scan started\n"
 			else 
@@ -234,7 +236,9 @@ sub CommandParser(CmdNum)
 			else
 				rc=CheckConnId(ConnToDev,ad_from_table)
 				if rc==-1 then
-					rc = BleConnect(addr_table$[ad_from_table], 5000, 7500, 150000, 5000000)
+					dim cphy
+					if BLE_PHY==BLE_CODED_PHY then : cphy=1 : endif
+					rc = BleConnectExtended(addr_table$[ad_from_table],5000,minConnInterval,maxConnInterval,5000000,cphy,0)
 					if rc == 0 then
 						dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
 						print "-";integer.d'ConnToDev;"-Connecting to ";conn_addr$;" ...\n"
