@@ -1,7 +1,7 @@
 //******************************************************************************
 // Definitions
 //******************************************************************************
-#define DeviceName                    	"BL654"
+#define DeviceName                    	"SIAM MODEM"
 #define BLE_TX_POWER                    8		// Possible values are 8, 7, 6, 5, 4, 3, 2, 0, -4, -8, -12, -16, -20, -40dBm
 #define BLE_1M_PHY                      1
 #define BLE_2M_PHY                      2
@@ -14,20 +14,29 @@
 #define BLE_PHY							BLE_CODED_PHY
 #define U_BUF							2048
 #define U_SPEED							115200
+#define MinConnInterval					7500
+#define MaxConnInterval					20000
 #define EncryptConn						2 //2-encr, 1-open
 #define AddAppearanceToAdv				0 //0\1
 #define BleAppearance					3200	//3200-весы, 520-тэг, 128-компьютер, 64-телефонб 384-удаленное кправление, ble_types.h in SDK
 #define DevNameLength					10
+#define AdvInterval						250
 // Definitions for attribute values to achieve higher bandwidth needed for CODED PHY
 #define USE_STRINT_IN_EVENTS_KEY_ID		213		// CFG ID 213
 #define ENABLE_HIGH_BANDWIDTH_KEY_ID	214		// CFG ID 214
 #define USE_STRING_IN_EVENTS			1		// 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
 #define BLE_ENABLE_HIGH_BANDWIDTH		1		// 0: Normal Bandwidth (default), 1: High Bandwidth					
-#define BASEUUID						0x6340 //"\56\9a\11\01\b8\7f\49\0c\92\cb\11\ba\5e\a5\16\7c" VSP base UUID
+#define BASEUUID						0x6340	//"\56\9a\11\01\b8\7f\49\0c\92\cb\11\ba\5e\a5\16\7c" VSP base UUID
 #define RXUUID							0x6341
 #define TXUUID							0x6342
-dim URI$:URI$=							"162f2f7369616d6f696c2e7275" //http://siamoil.ru (UTF-8)
-dim LESupFutr$:LESupFutr$=				"0018" //coded phy+adv ext (v6,pB,4.6 bt core specification)
+#define GAPDataType1					0x27	//bluetooth.com/specifications/assigned-numbers/generic-access-profile/
+dim LESupFutr$:LESupFutr$=				"2018"	//(v6,pB,4.6 bt core specification)
+#define GAPDataType2					0x24
+dim http$:http$=						"16"
+dim URI$:URI$=							"//siamoil.ru"
+dim tag$:tag$=							"44"
+dim Company$:Company$=					"ТНПВО СИАМ"
+dim Addr$:Addr$=""
 #set $cmpif,0xFF
 
 //******************************************************************************
@@ -79,62 +88,70 @@ ENDFUNC 0
 //------------------------------------------------------------------------------
 // Function that will create a custom VSP service with Tx/Rx characteristics
 //------------------------------------------------------------------------------
-function CreateVSPService()
+function ServiceAndAdvertInit()
     dim UUIDStr$,mdCccd,mdVal,s$,RxUUID,TxUUID,svcID,mdrxDesc,rxDesc$,mdtxDesc,txDesc$
     s$ = "\00" //Default value for characteristics  
     //Create the VSP service
 	BaseUUID = BleHandleUuid16(BASEUUID)
 	// UUIDStr$=BASEUUID
 	// BaseUUID = BleHandleUuid128(UUIDStr$)
-    rc = BleServiceNew(1, BaseUUID, svcID) : AssertRC(rc,21)
+    rc = BleServiceNew(1, BaseUUID, svcID)
     //Create the RX characteristic
     mdVal = BleAttrMetadata(0,1,nAttributeLength,1,rc)
     RxUUID = RXUUID
     RxUUID = BleHandleUuidSibling(BaseUUID, RxUUID)
-    rc = BleCharNew(8, RxUUID, mdVal, 0, 0) : AssertRC(rc,22)
+    rc = BleCharNew(8, RxUUID, mdVal, 0, 0)
 	mdrxDesc=BleAttrMetadata(1,0,nAttributeLength,1,rc)
 	rxDesc$="RX data"
 	rc=BleCharDescUserDesc(rxDesc$,mdrxDesc)
-    rc = BleCharCommit(svcID, s$, RXchar) : AssertRC(rc,23)
+    rc = BleCharCommit(svcID, s$, RXchar)
     //Create the TX characteristic
     mdVal = BleAttrMetadata(0,0,nAttributeLength,1,rc)
     mdCccd = BleAttrMetadata(1,1,2,0,rc) 
     TxUUID = TXUUID
     TxUUID = BleHandleUuidSibling(BaseUUID, TxUUID)
-    rc = BleCharNew(16, TxUUID, mdVal, mdCccd, 0) : AssertRC(rc,24)
+    rc = BleCharNew(16, TxUUID, mdVal, mdCccd, 0)
 	mdtxDesc=BleAttrMetadata(1,0,nAttributeLength,1,rc)
 	txDesc$="TX data"
 	rc=BleCharDescUserDesc(txDesc$,mdtxDesc)
-    rc = BleCharCommit(svcID, s$, TXchar) : AssertRC(rc,25)
-    //Commit the service
-    rc = BleServiceCommit(svcID) : AssertRC(rc,26)
+    rc = BleCharCommit(svcID, s$, TXchar)
+    rc = BleServiceCommit(svcID)
+	
+	//Create advertising messages/sets
+	dim scRpt$,adRpt$,ad1Rpt$,t1ext$,t2ext$,t3ext$
+	rc=BleGapSvcInit(DevName$,0,BleAppearance,MinConnInterval,MaxConnInterval,4000000,0) : AssertRC(rc,1)
+	rc=BleAdvRptInit(adRpt$, 6, AddAppearanceToAdv, DevNameLength) : AssertRC(rc,2)
+	rc=BleScanRptInit(scRpt$)
+	
+	//t1ext$=strdehexize$(LESupFutr$)
+	//rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType1,t1ext$) : AssertRC(rc,3)
+	t3ext$=strdehexize$(tag$)+Company$
+	rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,t3ext$) : AssertRC(rc,5)
+	t2ext$=strdehexize$(http$)+URI$
+	rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,t2ext$) : AssertRC(rc,4)
+	
+	//rc=BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,6)
+	rc=BleAdvSetCreate(0,9,1,0,Addr$,"") : AssertRC(rc,7)
+	rc=BleAdvSetNewData(0,adRpt$,scRpt$) : AssertRC(rc,8)
 endfunc 0
 
 //------------------------------------------------------------------------------
 // Start LE Adverts
 //------------------------------------------------------------------------------
 FUNCTION BleStartAdverts()
-    DIM nMinConnInterval, nMaxConnInterval
-	dim scRpt$, adRpt$, UUIDStr$	
-	// Register GAP service with device name and connection intervals
-    rc = BleGapSvcInit(DevName$, 0, BleAppearance, 7500, 10000, 4000000, 0) : AssertRC(rc,1)
-	//Initialise the Advert report (no appearance AD)
-    rc = BleAdvRptInit(adRpt$, 6, AddAppearanceToAdv, DevNameLength) : AssertRC(rc,2)
-    //Init the scan report for the VSP service 
-    rc = BleScanRptInit(scRpt$) : AssertRC(rc,3)
-    //Advertise the 128 bit uuid in a scan report
-    //rc = BleAdvRptAddUuid128(scRpt$, BaseUUID) : AssertRC(rc,4)
-	rc = BleAdvRptAddUuid16(scRpt$, BaseUUID,-1,-1,-1,-1,-1) : AssertRC(rc,4)
-	dim text1$:text1$=strdehexize$(LESupFutr$)
-	rc=BleAdvRptAppendAD(adRpt$,0x27,text1$) : AssertRC(rc,5)
-	dim text2$:text2$=strdehexize$(URI$)
-	rc=BleAdvRptAppendAD(adRpt$,0x24,text2$) : AssertRC(rc,6)
-    //Commit the advert report
-    rc = BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,7)
-    // Start Ble adverts
-    dim Addr$ : Addr$ = " "
-    rc = BleAdvertStart(ADV_TYPE, Addr$, 100, 0, 0) : AssertRC(rc,8)
+	if BLE_PHY==BLE_CODED_PHY then
+		rc=BleAdvSetStart(0,AdvInterval,0,0,0) : AssertRC(rc,9)
+	else
+		rc=BleAdvertStart(ADV_TYPE, Addr$, AdvInterval, 0, 0) : AssertRC(rc,10)
+	endif
 ENDFUNC 0
+
+// dim sel
+// function ChangeAdvSet()
+	// if sel==0 then : rc=BleAdvRptsCommit(adRpt$,scRpt$) : sel=1
+	// else : rc=BleAdvRptsCommit(ad1Rpt$,scRpt$) : sel=0
+	// endif
+// endfunc 1
 
 //------------------------------------------------------------------------------
 // EVUARTRX - Function handler for UART data receive
@@ -231,8 +248,7 @@ function HndlrBleMsg(nMsgId, nCtx)
         ShowConnParms()
     case BLE_EVBLEMSGID_DISCONNECT
         PRINT "-Disconnected!\n"
-        dim Addr$ : Addr$ = ""
-        rc = BleAdvertStart(ADV_TYPE, Addr$, 100, 0, 0)
+        rc = BleStartAdverts()
 		ConnectionID = 0
     case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
         ShowConnParms()
@@ -243,16 +259,18 @@ endfunc 1
 //******************************************************************************
 // main()
 //******************************************************************************
-UARTClose()
-rc = UartOpen(U_SPEED, U_BUF, U_BUF, "CN81H")
+if UartInfo(0)==0 then : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H")
+else : UartClose() : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H")
+endif
 rc = BleTxPowerSet(BLE_TX_POWER)
 rc = EnableHighBandwidth()
-rc = CreateVSPService()
+rc = ServiceAndAdvertInit()
 rc = BleAdvertConfig(4,BLE_PHY)
 rc = BleAdvertConfig(5,BLE_PHY)
 rc = BleStartAdverts()
-dim addr$:addr$ = SYSINFO$(4)
-print "Hi! My address is "; strhexize$(addr$);"\n"
+dim RealAddr$:RealAddr$ = SYSINFO$(4)
+print "Hi! My address is "; strhexize$(RealAddr$);"\n"
+//TimerStart(0,1000,1)
 
 //******************************************************************************
 //Setup event handlers
@@ -264,7 +282,9 @@ ONEVENT EVBLEMSG			CALL HndlrBleMsg
 ONEVENT EVCHARVALUE			CALL HndlrCharValue         // Used if AT+CFG 213=1
 ONEVENT EVNOTIFYBUF			CALL HndlrNtfyBuf
 // BLE PHY
-OnEvent EVBLE_PHY_UPDATED	CALL HandlerPhyChngd
-OnEvent EVBLE_PHY_REQUEST	CALL HandlerPhyReq
+ONEVENT EVBLE_PHY_UPDATED	CALL HandlerPhyChngd
+ONEVENT EVBLE_PHY_REQUEST	CALL HandlerPhyReq
+// Timer for change advsets
+//OnEvent EVTMR0 				call ChangeAdvSet
 
 WAITEVENT

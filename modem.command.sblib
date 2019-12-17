@@ -29,7 +29,7 @@ HelpTable$[9]=" (9-conn-) *disconnect from selected device from table"
 HelpTable$[10]=" (10-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs"
 HelpTable$[11]=" (11-) *show modem parameters"
 HelpTable$[12]=" (12-) *exit app to AT mode, RESUME to continue run app"
-HelpTable$[13]=" (13-) *change modem phy level"
+HelpTable$[13]=" (13-1/2/4-) *change modem phy level 1-1M BL4, 2-2M BL5, 4-CODED BL5"
 HelpTable$[14]=" (14-) *reset modem"
 
 //==============================================================================
@@ -394,7 +394,7 @@ sub CommandParser(CmdNum)
 			print " Flash FAT total="; SysInfo(611);" free="; SysInfo(612);"\n"
 			print " Flash NV total="; SysInfo(631);" free="; SysInfo(632);"\n"
 			print " Stack size="; SysInfo(2022);" in use="; SysInfo(2021);"\n"
-			print " Heap size="; SysInfo(2023);" free="; SysInfo(2025);"\n"
+			print " Heap size="; SysInfo(2023);" in use="; SysInfo(2025);"\n"
 			print " Timer resolution="; SysInfo(2002);" tick="; SysInfo(2004);"\n"
 			print " Radio activity="
 			select SysInfo(2016)
@@ -423,6 +423,7 @@ sub CommandParser(CmdNum)
 			v=SysInfo(2026)
 			v=v/1000.0
 			print " Supply voltage=";float.f'v;"\n"
+			print " FWStartTime="; SysInfo(2080);"ms\n"
 		//-------------------------------------------------------------------------------
 		case StopApp
 			STOP
@@ -439,7 +440,7 @@ sub CommandParser(CmdNum)
 				case 2
 					BLE_PHY=BLE_2M_PHY
 					print "-PHY changed to LE 2M\n"
-				case 3
+				case 4
 					BLE_PHY=BLE_CODED_PHY
 					SCAN_TYPE=BLE_EXTENDED_SCANNING
 					HIGH_BANDWIDTH=1

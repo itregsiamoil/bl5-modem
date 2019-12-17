@@ -235,7 +235,18 @@ rc = BleScanConfig(5,SCAN_TYPE)
 rc = BleConnectConfig(10,BLE_PHY)
 rc = BleConnectConfig(11,SCAN_TYPE)
 //rc = BleGattcOpen(GATT_BUF, 0)
-PRINT "-Hello!\n-Write '0-' for help, '11-' for hardware parameters\n"
+PRINT "-Hello! I'm "
+select BLE_PHY
+	case 1
+		print "1M BLE"
+	case 2
+		print "2M BL5"
+	case 4
+		print "CODED BL5"
+	case else
+endselect
+print " modem\n"
+print "-Write '0-' for help, '11-' for hardware parameters\n"
 
 //------------------------------------------------------------------------------
 // Enable synchronous event handlers

@@ -3,7 +3,7 @@
 //******************************************************************************
 #define BLE_1M_PHY                      	1
 #define BLE_2M_PHY                      	2
-#define BLE_CODED_PHY                   	3
+#define BLE_CODED_PHY                   	4
 #define BLE_NORMAL_SCANNING           		0
 #define BLE_EXTENDED_SCANNING         		1
 #define ENABLE_HIGH_BANDWIDTH_KEY_ID      	214    // CFG ID 214
