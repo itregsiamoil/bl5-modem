@@ -5,34 +5,26 @@ sub AdvertProcessing (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$)
 	dim i
 	for i=0 to device_addr_overall-1
 		rc=StrCmp(ad$,addr_table$[i])
-		if (rc==0) then			//print device address once
+		if (rc==0) then			//if found print device address once
 			if (msg_cnt[i]==1) then 
-				print "-";integer.d'ScanDev;"-Device №";i;" found: "; strhexize$(addr_table$[i]);" RSSI=";rsi//;"\n"					
+				print "-";integer.d'ScanDev;"-Device №";i;" found: "; strhexize$(addr_table$[i]);" RSSI=";rsi					
 				if strlen(adv_table$[i])==0 then : print " NULL\n"
-				else : print " ";adv_table$[i];"\n"//;"("; strhexize$(name$);")\n"
+				else : print " ";adv_table$[i];"\n"
 				endif
 			endif
+			adv_table$[i]=dta$
 			msg_cnt[i]=msg_cnt[i]+1
 			break
 		endif
 	next
-	if dev_cnt==device_addr_overall then : dev_cnt=0 : endif //address table limited to device_addr_overall, 0-device_addr_overall-0
 	if (rc!=0) then				//add new address in table
 		addr_table$[dev_cnt]=ad$
-		dim size,type,name$
-		if (debsw==1) then : print "-dta ";dta$ : endif
-		while type!=9
-			size=strgetchr(dta$,0)
-			if (debsw==1) then : print "-size ";size : endif
-			type=strgetchr(dta$,1)
-			if (debsw==1) then : print "-type ";type : endif
-			if type!=9 then : strshiftleft(dta$,size+1)
-			else : adv_table$[dev_cnt]=mid$(dta$,2,size-1) : break
-			endif
-			if strlen(dta$)==0 then : break : endif
-		endwhile
-		type=0 : size=0
+		AdvParsing(dta$,dev_cnt)
 		dev_cnt=dev_cnt+1
+	endif
+	if dev_cnt==device_addr_overall then
+		print "-";integer.d'StopScanDev;"-Scanning stopped via max number of device foud\n" 
+		CommandParser(2)
 	endif
 endsub
 
@@ -190,10 +182,10 @@ ENDSUB
 function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as integer	
 	select nMsgId		
 		case BLE_EVBLEMSGID_CONNECT
-			rc = BleGattcOpen(GATT_BUF, 0)
 			ConnectionID = nCtx
 			print "-";integer.d'ConnToDev;"-Connectinon ";ConnectionID;" for dev №";integer.d'ad_from_table;" created\n"	
 			conn_table[ad_from_table]=ConnectionID
+			conn_cnt=conn_cnt+1
 			ShowConnParms(ConnectionID)	
 			dim CCCD_ON$:CCCD_ON$ = "\01\00"
 			rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, CCCD_ON$)
@@ -204,6 +196,7 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 				if (ConnectionID==conn_table[i]) then
 					PRINT "-";integer.d'DisConn;"-";i;"-Disconnected!\n"
 					conn_table[i]=0
+					conn_cnt=conn_cnt-1
 					break
 				endif
 			next
@@ -234,7 +227,9 @@ rc = BleScanConfig(5,SCAN_TYPE)
 // Set connection PHYs to CODED PHY, enable extended connection
 rc = BleConnectConfig(10,BLE_PHY)
 rc = BleConnectConfig(11,SCAN_TYPE)
-//rc = BleGattcOpen(GATT_BUF, 0)
+rc = NvCfgKeySet(206,6)
+rc = NvCfgKeySet(207,2)
+rc = BleGattcOpen(GATT_BUF, 0)
 PRINT "-Hello! I'm "
 select BLE_PHY
 	case 1

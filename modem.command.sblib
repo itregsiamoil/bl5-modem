@@ -1,5 +1,5 @@
 //Commands
-#define NumCmnds			15
+#define NumCmnds			16
 #define Help				0
 #define ScanDev				1
 #define StopScanDev			2
@@ -12,25 +12,27 @@
 #define DisConn				9
 #define DebudSwitch			10
 #define ModemParams			11
-#define StopApp				12
+#define ActiveConn			12
 #define ChangePhy			13
-#define ResetMdm			14
+#define StopApp				14
+#define ResetMdm			15
 dim HelpTable$[NumCmnds]
 HelpTable$[0]=" (0-) *print all comands list"
 HelpTable$[1]=" (1-) *unlimit scan BLE devices"
 HelpTable$[2]=" (2-) *stop scan BLE devices"
 HelpTable$[3]=" (3-add-) *connect to selected device from table"
 HelpTable$[4]=" (4-conn-) *create list of services and characteristics from device"
-HelpTable$[5]=" (5-conn-srv-) *create list of descriptors from select service"
-HelpTable$[6]=" (6-conn-rx-tx-ntf-) *setup RX-TX-CCCD to chat with selected device from table"
+HelpTable$[5]=" (5-conn-char-) *create list of descriptors from select characteristic"
+HelpTable$[6]=" (6-conn-rx-tx-ntf-) *setup RX-TX-CCCD characteristics to chat with selected device from table"
 HelpTable$[7]=" (7-conn-data-) *send data to selected device from table"
 HelpTable$[8]=" (8-conn-n-) *send test string (100*n bytes) to selected device from table"
 HelpTable$[9]=" (9-conn-) *disconnect from selected device from table"
 HelpTable$[10]=" (10-0/1/2-) *0-off debug, 1-on debug, 2-measure time between msgs"
 HelpTable$[11]=" (11-) *show modem parameters"
-HelpTable$[12]=" (12-) *exit app to AT mode, RESUME to continue run app"
+HelpTable$[12]=" (12-) *show number of active connections"
 HelpTable$[13]=" (13-1/2/4-) *change modem phy level 1-1M BL4, 2-2M BL5, 4-CODED BL5"
-HelpTable$[14]=" (14-) *reset modem"
+HelpTable$[14]=" (14-) *exit app to AT mode, RESUME to continue run app"
+HelpTable$[15]=" (15-) *reset modem"
 
 //==============================================================================
 // Parsing command parametr
@@ -54,8 +56,20 @@ endfunc param
 function CheckConnId(cmnd,id)
 	dim param
 	if (id<device_addr_overall) then
-		if conn_table[id]>1 then : param=id
-		else : param=-1 : print "-";integer.d'cmnd;"-Connection id not exist in table\n"
+		if conn_table[id]>1 then
+			if cmnd==ConnToDev then		
+				param=-1
+				print "-";integer.d'ConnToDev;"-Connection already exist\n"
+			else : param=id
+			endif
+		else
+			if cmnd==ConnToDev then
+				param=1
+				print "-";integer.d'cmnd;"-First connection\n"
+			else
+				param=-1
+				print "-";integer.d'cmnd;"-Connection id not exist in table\n"
+			endif
 		endif
 	else
 		param=-1
@@ -144,9 +158,15 @@ function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
 			case 8
 				print "(w)"
 			case 10
-				print "(r/w)"	
+				print "(r/w)"
 			case 16
 				print "(n-w-cccd)"
+			case 18
+				print "(r/n-w-cccd)"
+			case 24
+				print "(w/n-w-cccd)"
+			case 26
+				print "(r/w/n-w-cccd)"
 			case 32
 				print "(i-w-cccd)"
 			case 48
@@ -194,6 +214,42 @@ function HandlerDescDisc(cHndl,cUuid,hndl) as integer
 	ENDIF
 endfunc 1
 
+//==============================================================================
+// Function for parsing advertising messages
+//==============================================================================
+sub AdvParsing(advmsg$,num)
+	dim size,type,beacondev$,beacondev
+	if (debsw==1) then : print "-dta ";advmsg$ : endif
+	while type!=9
+		size=strgetchr(advmsg$,0)
+		if (debsw==1) then : print "-size ";size : endif
+		type=strgetchr(advmsg$,1)
+		if (debsw==1) then : print "-type ";type : endif
+		if type!=9 then
+			if type==255 then : beacondev$=mid$(advmsg$,2,2) : endif
+			strshiftleft(advmsg$,size+1)
+		else
+			adv_table$[num]=mid$(advmsg$,2,size-1)
+		endif
+		if strlen(advmsg$)==0 then : break : endif
+	endwhile
+	//print "type-";type;"\n"
+	if type!=9 then
+		rc=BleDecodeS16(beacondev$,beacondev,0)
+		//print "beac-";beacondev;"\n"
+		if beacondev==AdvTypeMicrosoft then 
+			adv_table$[num]=DevTypeMicrosoft$
+		else
+			if beacondev==AdvTypeApple then 
+				adv_table$[num]=DevTypeMicrosoft$
+			else
+				adv_table$[num]=DevTypeUnknw$
+			endif
+		endif
+	endif
+	type=0 : size=0
+endsub
+
 //-------------------------------------------------------------------------------
 // Function for parsing commands
 //-------------------------------------------------------------------------------
@@ -217,35 +273,40 @@ sub CommandParser(CmdNum)
 		//-------------------------------------------------------------------------------
 		case StopScanDev
 			rc = BleScanStop() 
-			if SysInfo(2016)==0 THEN 
+			if (SysInfo(2016)!=1)||(SysInfo(2016)!=24) THEN 
 				PRINT "-";integer.d'StopScanDev;"-Scan stopped\n"
-				//rc = BleScanFlush()
+				rc = BleScanFlush()
 			endif
-			print "-";integer.d'StopScanDev;"-";dev_cnt;" device in table: \n"
+			print "-";integer.d'StopScanDev;"-";dev_cnt-1;" device in table: \n"
 			dim i
-			for i=0 to dev_cnt-1
+			for i=0 to device_addr_overall-1
+				if (strlen(addr_table$[i])==0) then : break : endif
+				AdvParsing(adv_table$[i],i)
 				print "-";integer.d'StopScanDev;"-";i;"-"; strhexize$(addr_table$[i]);"-";msg_cnt[i];"-";adv_table$[i];"\n"
 				msg_cnt[i]=1
-				if (strlen(addr_table$[i])==0) then : break : endif
 			next
 		//-------------------------------------------------------------------------------
 		case ConnToDev
 			ad_from_table=str_to_id()
 			if ad_from_table==-1 then : break : endif
-			if strlen(addr_table$[ad_from_table])<1 then : print "-Address id not exist in table\n" : break
+			if ad_from_table>device_addr_overall then
+				print "-";integer.d'ConnToDev;"-Id bigger then max: ";integer.d'device_addr_overall;"\n"
+				break
+			endif
+			if strlen(addr_table$[ad_from_table])<1 then
+				print "-";integer.d'ConnToDev;"-Address id not exist in table\n"
+				break
 			else
 				rc=CheckConnId(ConnToDev,ad_from_table)
-				if rc==-1 then
+				if rc>-1 then
 					dim cphy
-					if BLE_PHY==BLE_CODED_PHY then : cphy=1 : endif
+					if BLE_PHY==BLE_CODED_PHY then : cphy=1 : else : cphy=0 : endif
 					rc = BleConnectExtended(addr_table$[ad_from_table],5000,minConnInterval,maxConnInterval,5000000,cphy,0)
 					if rc == 0 then
-						dim conn_addr$:conn_addr$=strhexize$(addr_table$[ad_from_table])
-						print "-";integer.d'ConnToDev;"-Connecting to ";conn_addr$;" ...\n"
+						print "-";integer.d'ConnToDev;"-Connecting to ";strhexize$(addr_table$[ad_from_table]);" ...\n"
 					else
 						print "-";integer.d'ConnToDev;"-Unable to connect, error: ";integer.h'rc;"\n"
 					endif
-				else : print "-";integer.d'ConnToDev;"-Connection already exist\n"
 				endif
 			endif
 		//-------------------------------------------------------------------------------
@@ -316,10 +377,6 @@ sub CommandParser(CmdNum)
 					else 
 						if (debsw==1) then : print "-New conn send\n" : endif
 						do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
-							// if (rc==2) then 
-								// data_table$[CurrConnId]=""
-								// break 
-							// endif
 						until rc==0		 
 					endif
 					PrevConnId=CurrConnId
@@ -424,9 +481,20 @@ sub CommandParser(CmdNum)
 			v=v/1000.0
 			print " Supply voltage=";float.f'v;"\n"
 			print " FWStartTime="; SysInfo(2080);"ms\n"
+			dim pcon,centcon
+			rc=NvCfgKeyGet(205,pcon)
+			print " AvailNumPeriphConn=";pcon;"\n"
+			rc=NvCfgKeyGet(206,centcon)
+			print " AvailNumCentrConn=";centcon;"\n"
 		//-------------------------------------------------------------------------------
-		case StopApp
-			STOP
+		case ActiveConn
+			print "-";integer.d'ActiveConn;"-";"Number of active connections: ";conn_cnt;"\n"
+			dim c
+			for c=0 to device_addr_overall-1
+				if conn_table[c]>0 then
+					print "-";integer.d'ActiveConn;"-";c;"-"; strhexize$(addr_table$[c]);"-";adv_table$[c];"\n"
+				endif
+			next
 		//-------------------------------------------------------------------------------
 		case ChangePhy
 			rc=str_to_id()
@@ -448,12 +516,16 @@ sub CommandParser(CmdNum)
 				case else
 			endselect
 			rc = BleScanStop() 
+			rc = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HIGH_BANDWIDTH)
 			rc = BleScanConfig(4,BLE_PHY)
 			rc = BleScanConfig(5,SCAN_TYPE)
 			// Set connection PHYs to CODED PHY, enable extended connection
 			rc = BleConnectConfig(10,BLE_PHY)
 			rc = BleConnectConfig(11,SCAN_TYPE)
-			rc = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
+			//rc = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
+		//-------------------------------------------------------------------------------
+		case StopApp
+			STOP
 		//-------------------------------------------------------------------------------
 		case ResetMdm
 			Reset(0)

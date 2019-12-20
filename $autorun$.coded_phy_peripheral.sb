@@ -37,7 +37,7 @@ dim URI$:URI$=							"//siamoil.ru"
 dim tag$:tag$=							"44"
 dim Company$:Company$=					"ТНПВО СИАМ"
 dim Addr$:Addr$=""
-#set $cmpif,0xFF
+#set $cmpif,0x00 //debug 00-off, FF-on
 
 //******************************************************************************
 // Global Variable Declarations
@@ -200,11 +200,11 @@ ENDFUNC 1
 //------------------------------------------------------------------------------
 FUNCTION HndlrCharValue(nConnHandle, charHandle, offset, len, BYVAL Rd$ AS STRING)
     // Just print the data that we got from the char
-	print "charvalue-";charHandle;"\n"
+	#cmpif 0xFF : print "\nCharHandle-";charHandle;"\n"
     IF charHandle == RXchar THEN
 		PRINT Rd$
-		#cmpif 0xFF : UartData$=Rd$
-		#cmpif 0xFF : rc=HndlrUartRx()		
+		UartData$=Rd$
+		rc=HndlrUartRx()
     ENDIF
 ENDFUNC 1
 
