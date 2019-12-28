@@ -19,41 +19,43 @@
 #define BLE_EXTENDED_SCANNING         		1
 #define USE_STRING_IN_EVENTS                1	// 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
 dim HIGH_BANDWIDTH:HIGH_BANDWIDTH=			1	// 0: medium bandwidth 1: high bandwidth
-dim SCAN_TYPE:SCAN_TYPE=					BLE_EXTENDED_SCANNING
-dim BLE_PHY:BLE_PHY=						BLE_CODED_PHY
+dim SCAN_TYPE:SCAN_TYPE=					BLE_NORMAL_SCANNING
+dim BLE_PHY:BLE_PHY=						BLE_1M_PHY
 dim RXHandle:RxHandle=						16	//RX handle (MI-18,MO-16,RX-21,TX-23,MOCCCD-24)
 dim TXHandle:TXHandle=						19	//TX handle //Hardcoded GATT attributes of remote BL654
 dim TXCCCDHandle:TXCCCDHandle=				20	//TX CCCD handle
 dim nAttributeLength:nAttributeLength=		20	//Default Attribute Data Length on BL654s
-dim Separator$:Separator$=					"-"	//commands separator
+dim Sep$:Sep$=								"*"	//commands separator
 
 //******************************************************************************
 // Const
 //******************************************************************************
 #define ENABLE_HIGH_BANDWIDTH_KEY_ID      	214	// CFG ID 214
 #define USE_STRINT_IN_EVENTS_KEY_ID         213	// CFG ID 213
-dim AdvTypeMicrosoft:AdvTypeMicrosoft=6//"0006"
-dim DevTypeMicrosoft$:DevTypeMicrosoft$="MicrosoftBeacon"
-dim AdvTypeApple:AdvTypeApple=76//"004C"
-dim DevTypeApple$:DevTypeApple$="AppleBeacon"
-dim DevTypeUnknw$:DevTypeUnknw$="UnknwBeacon "
-dim TestStr$:TestStr$ = "1234567890qwertyuiop0987654321asdfghjkl;1234567890zxcvbnm,./1234567890qwertyuiop0987654321asdfghjkl;"
+#define AdvTypeMicrosoft					6//"0006" hex-dec
+#define AdvTypeApple						76//"004C"
+#define AdvTypeHuami						343//"004C"
+dim DevTypeMicrosoft$:DevTypeMicrosoft$=	"MicrosoftBeacon"
+dim DevTypeApple$:DevTypeApple$=			"AppleBeacon"
+dim DevTypeHuami$:DevTypeHuami$=			"Anhui Huami"
+dim DevTypeUnknw$:DevTypeUnknw$=			"UnknwBeacon"
+#define TestStr	"1234567890qwertyuiop0987654321asdfghjkl;1234567890zxcvbnm,./1234567890qwertyuiop0987654321asdfghjkl;"
 
 //******************************************************************************
 // Global Variable Declarations
 //******************************************************************************
-dim ad_from_table:ad_from_table=0
-dim dev_cnt:dev_cnt=0
-dim conn_cnt:conn_cnt=0
-dim BufferState : BufferState = 0   	//Buffer state
-dim BufferFull : BufferFull = 0     	//Buffer full
-dim debsw:debsw=0						//переключатель режимов отладки
+dim ad_from_table
+dim dev_cnt,conn_cnt,advpars_cnt
+dim ParalHandlWork,LastTick
+dim BufferState							//ble buffer state
+dim debsw								//переключатель режимов отладки
 dim urx$ : urx$ = ""                	//UART read buffer
 dim BleBuf$ : BleBuf$ = ""          	//VSP read buffer
 dim msg_cnt[device_addr_overall]		//массив количества адвертайзинг сообщений под каждый адрес
-dim adv_table$[device_addr_overall]		//массив данных адвертайзинг сообщений под каждый адрес
 dim addr_table$[device_addr_overall]	//адреса найденных девайсов в hex
-dim data_table$[device_addr_overall]	//массив данных под каждое соединение
+dim data_table$[device_addr_overall]	//массив передаваемых данных под каждое соединение
+dim adv_table$[device_addr_overall]		//массив данных адвертайзинг сообщений под каждый адрес
+dim advpars_table$[device_addr_overall]	//массив разобранных данных адвертайзинг сообщений под каждый адрес
 dim conn_table[device_addr_overall]		//массив идентификаторов соединений
 dim rc,ConnectionID,CurrConnId,PrevConnId,PrevHndl
 dim sendcount,kbytes,SendTestFlag

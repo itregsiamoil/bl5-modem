@@ -1,77 +1,86 @@
 #include "modem.setup.sblib"
 #include "modem.command.sblib"
 
-sub AdvertProcessing (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$)
-	dim i
+// Handler for recieve and store advert messages
+//-------------------------------------------------------------------------------
+sub AdvertRecieve (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$,phy)
+	dim i,additions$
+	additions$="044000000000"
+	additions$=strdehexize$(additions$)
+	rc=strsetchr(additions$,ABS(rsi),2)
+	rc=strsetchr(additions$,phy,3)
+	rc=strsetchr(additions$,advchan,4)
+	rc=strsetchr(additions$,ndisc,5)
 	for i=0 to device_addr_overall-1
 		rc=StrCmp(ad$,addr_table$[i])
-		if (rc==0) then			//if found print device address once
-			if (msg_cnt[i]==1) then 
-				print "-";integer.d'ScanDev;"-Device №";i;" found: "; strhexize$(addr_table$[i]);" RSSI=";rsi					
-				if strlen(adv_table$[i])==0 then : print " NULL\n"
-				else : print " ";adv_table$[i];"\n"
-				endif
-			endif
-			adv_table$[i]=dta$
+		if (rc==0) then			//if found increase msg count
+			if (msg_cnt[i]==1) then : adv_table$[i]=dta$+additions$ : endif
 			msg_cnt[i]=msg_cnt[i]+1
 			break
 		endif
 	next
 	if (rc!=0) then				//add new address in table
-		addr_table$[dev_cnt]=ad$
-		AdvParsing(dta$,dev_cnt)
-		dev_cnt=dev_cnt+1
+		if conn_table[dev_cnt]==0 then
+			addr_table$[dev_cnt]=ad$
+			adv_table$[dev_cnt]=dta$+additions$
+			dev_cnt=dev_cnt+1
+		else 
+			dev_cnt=dev_cnt+1
+			addr_table$[dev_cnt]=ad$
+			adv_table$[dev_cnt]=dta$+additions$
+			dev_cnt=dev_cnt+1
+		endif
 	endif
-	if dev_cnt==device_addr_overall then
-		print "-";integer.d'StopScanDev;"-Scanning stopped via max number of device foud\n" 
+	if dev_cnt==device_addr_overall then		
+		print Sep$;integer.d'StopScanDev;Sep$;"Scanning stopped via max number of device foud\n"
 		CommandParser(2)
 	endif
 endsub
 
-//==============================================================================
 // Handler for reading advert report
 //==============================================================================
 function HandlerAdvRpt() as integer
-	dim ndisc,rsi,ad$,dta$,advtype,advchan,mdata$
+	dim ndisc,rsi,phy,ad$,dta$,advtype,advchan,mdata$
 	rc = BleScanGetAdvReportEx(advtype,ad$,dta$,ndisc,rsi,advchan)
 	while (rc==0)
-		AdvertProcessing (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$)	
+		phy=BLE_1M_PHY
+		AdvertRecieve (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$,phy)	
 		rc = BleScanGetAdvReportEx(advtype,ad$,dta$,ndisc,rsi,advchan)		
 	endwhile
 endfunc 1
 
-//==============================================================================
 // Handler for reading extension advert report
 //==============================================================================
 function HandlerExtAdvRpt(BYVAL ad$ AS STRING,BYVAL dta$ AS STRING,BYVAL rsi AS INTEGER,BYVAL mdata$ AS STRING)
-	AdvertProcessing (ad$,dta$,rsi,0,0,0,mdata$)
+	AdvertRecieve (ad$,dta$,rsi,0,0,0,mdata$,BLE_CODED_PHY)
 	//print "ad=";ad$;"dta=";dta$;"rssi=";rsi
 	//rc=BleExtRptMetadata(mdata$,3)
 	//print "mdata=";mdata$;"\n"
 endfunc 1
 
-//------------------------------------------------------------------------------
-// EVNOTIFYBUF - Buffer fro BleGattcWriteCmd has been emptied
-//------------------------------------------------------------------------------
-FUNCTION HndlrNtfyBuf()
-    IF BufferState == 1 THEN
+// EVNOTifYBUF - Buffer fro BleGattcWriteCmd has been emptied
+//==============================================================================
+function HndlrNtfyBuf()
+    if BufferState == 1 then
 		TimerCancel(0)
         BufferState = 0
         do : rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
 		until rc==0
     // ELSE
         // rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
-    ENDIF
-	if (debsw==1) then : print "Client: data rcv &  buf empty\n" : endif
+    endif
+	if (debsw==1) then : print Sep$;"Client: data rcv &  buf empty\n" : endif
 	if SendTestFlag==1 then
-		if (strlen(data_table$[PrevConnId])==0) then : TimerStart(0,55,1) : endif
+		if (strlen(data_table$[PrevConnId])==0) then
+			ParalHandlWork=2
+			TimerStart(0,55,1)
+		endif
 	endif
-ENDFUNC 1
-	
-//==============================================================================
+endfunc 1
+
 // This handler is called when data recieved through UART
 //==============================================================================
-FUNCTION HndlrUartRx() 
+function HndlrUartRx() 
 	dim uLen
 	uLen = UartReadMatch(urx$, 0x0D) //Read data from UART
 	if (uLen>0) then
@@ -80,121 +89,111 @@ FUNCTION HndlrUartRx()
 		CommandParser(rc)
 		urx$=""
 	endif
-ENDFUNC 1
+endfunc 1
 
-//------------------------------------------------------------------------------
-// EVATTRNOTIFYEX - Received BLE notification
-//------------------------------------------------------------------------------
-dim LastTick
-FUNCTION HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL nType AS INTEGER, BYVAL nLength AS INTEGER,BYVAL data$ AS STRING)
-    IF (hAttr == TXHandle) then	
+// EVATTRNOTifYEX - Received BLE notification
+//==============================================================================
+function HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL nType AS INTEGER, BYVAL nLength AS INTEGER,BYVAL data$ AS STRING)
+    if (hAttr == TXHandle) then	
 		dim i
         for i=0 to device_addr_overall-1
 			if (hConn==conn_table[i]) then
-				PRINT "-";integer.d'SendToDev;"-";i;"-";nLength;"-";Data$;"\n" // Just print data that we got 
+				print Sep$;integer.d'SendToDev;Sep$;i;Sep$;nLength;Sep$;Data$;"\n" // Just print data that we got 
 				if (debsw==2) then
-					print "time-";GetTickCount()-LastTick;"\n"
+					print "time=";GetTickCount()-LastTick;"\n"
 					LastTick=GetTickCount()
 				endif
 				break
 			endif
 		next
-    ENDIF
+    endif
     Data$ = ""
-ENDFUNC 1
+endfunc 1
 		
-//-------------------------------------------------------------------------------
 // This function is used to configure the BL654 to use high bandwidth
 //-------------------------------------------------------------------------------
-FUNCTION BleHighBandwidth()
+sub BleHighBandwidth()
 	dim HighBandwidth,StringEvent
 	rc = NvCfgKeyGet(USE_STRINT_IN_EVENTS_KEY_ID, StringEvent) // Get High bandwidth value
-	IF  (StringEvent != USE_STRING_IN_EVENTS) THEN
-		// Allow data to be thrown in messages (i.e. Use EVATTRNOTIFYEX instead of EVATTRNOTIFY)
+	if  (StringEvent != USE_STRING_IN_EVENTS) then
+		// Allow data to be thrown in messages (i.e. Use EVATTRNOTifYEX instead of EVATTRNOTifY)
 		rc = NvCfgKeySet(USE_STRINT_IN_EVENTS_KEY_ID, USE_STRING_IN_EVENTS)
 		Reset(0)
-    ENDIF
+    endif
     rc = NvCfgKeyGet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HighBandwidth) // Get High bandwidth value
-    IF  (HighBandwidth != HIGH_BANDWIDTH) THEN
+    if  (HighBandwidth != HIGH_BANDWIDTH) then
         // Change the bandwidth configuration to HIGH (6 packets per interval)
         rc = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HIGH_BANDWIDTH)
         // Reset the module so that the data is overwritten  
 		Reset(0)		
-    ENDIF
-ENDFUNC 0
+    endif
+endsub
 
-//==============================================================================
 // This handler is called when there is a scan attempt timeout
 //==============================================================================
 function HandlerBlrScanTimOut() as integer
-	print "-";integer.d'StopScanDev;"-Scanning stopped via timeout\n"
+	print Sep$;integer.d'StopScanDev;Sep$;"Scanning stopped via timeout\n"
 	CommandParser(2)
 endfunc 1
 
-//==============================================================================
 // EVBLE_PHY_UPDATED - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyChngd(BYVAL hConn, BYVAL nStatus, BYVAL PhyTx, BYVAL PhyRx)
-    if (debsw==1) then : print "-PHY Changed: Status: ";integer.h' nStatus;" - PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
+    if (debsw==1) then : print Sep$;"PHY Changed! Status: ";integer.h' nStatus;" PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
 endfunc 1
 
-//==============================================================================
 // EVBLE_PHY_REQUEST - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
-    if (debsw==1) then : print "-PHY Request - PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
+    if (debsw==1) then : print Sep$;"PHY Request! PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
     // Accept the PHY requested by the remote device
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
 
-//------------------------------------------------------------------------------
 // EVBLE_CONN_TIMEOUT - BLE connection timed out
-//------------------------------------------------------------------------------
-FUNCTION HndlrConnTO()
-    print "-";integer.d'ConnToDev;"-Connection attempt timed out.\n"
-ENDFUNC 1
+//==============================================================================
+function HndlrConnTO()
+    print Sep$;integer.d'ConnToDev;Sep$;"Connection attempt timed out.\n"
+endfunc 1
 
-//------------------------------------------------------------------------------
 // EVATTRWRITE - Remote characteristic written
-//------------------------------------------------------------------------------
-FUNCTION HndlrAttrWrite(cHndl,aHndl,nSts)
-        BufferFull = 0
-		BufferState = 0
-        urx$ = ""
-        BleBuf$ = ""
-        // Now that everything is setup, Requst a switch to CODED PHY
-        //rc = BlePhySet(cHndl, BLE_PHY, BLE_PHY, 0)
-        rc = HndlrUartRx()
-ENDFUNC 1
+//==============================================================================
+function HndlrAttrWrite(cHndl,aHndl,nSts)
+	BufferState = 0
+	urx$ = ""
+	BleBuf$ = ""
+	// Now that everything is setup, Requst a switch to CODED PHY
+	//rc = BlePhySet(cHndl, BLE_PHY, BLE_PHY, 0)
+	rc = HndlrUartRx()
+endfunc 1
 
-//------------------------------------------------------------------------------
 // This shows the cuttent connection parameters
 //------------------------------------------------------------------------------
-SUB ShowConnParms(nConnHandle)
-    DIM intrvl,sprvto,slat
-    rc = BleGetCurConnParms(nConnHandle,intrvl,sprvto,slat)
-    if (debsw==1) then : print "-ConnParms: Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n" : endif
-ENDSUB
+sub ShowConnParms(nConnHandle)
+    DIM intrvl,suprvisto,slavelat
+    rc = BleGetCurConnParms(nConnHandle,intrvl,suprvisto,slavelat)
+    if (debsw==1) then : print Sep$;"ConnParms: Interval=";intrvl;",SuperTout=";suprvisto;",SlaveLatency=";slavelat;"\n" : endif
+endsub
 
-//==============================================================================
 // This handler is called when there is a BLE message
 //==============================================================================
 function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as integer	
 	select nMsgId		
 		case BLE_EVBLEMSGID_CONNECT
 			ConnectionID = nCtx
-			print "-";integer.d'ConnToDev;"-Connectinon ";ConnectionID;" for dev №";integer.d'ad_from_table;" created\n"	
+			print Sep$;integer.d'ConnToDev;Sep$;"Connectinon ";ConnectionID;" for dev №";integer.d'ad_from_table;" created\n"	
 			conn_table[ad_from_table]=ConnectionID
 			conn_cnt=conn_cnt+1
 			ShowConnParms(ConnectionID)	
 			dim CCCD_ON$:CCCD_ON$ = "\01\00"
 			rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, CCCD_ON$)
+			rc = BleSetCurConnParms(ConnectionID,minConnInterval,10000,5000000,0)
 		case BLE_EVBLEMSGID_DISCONNECT
 			dim i
 			ConnectionID = nCtx
 			for i=0 to device_addr_overall-1
 				if (ConnectionID==conn_table[i]) then
-					PRINT "-";integer.d'DisConn;"-";i;"-Disconnected!\n"
+					print Sep$;integer.d'DisConn;Sep$;i;Sep$;"Disconnected!\n"
 					conn_table[i]=0
 					conn_cnt=conn_cnt-1
 					break
@@ -203,49 +202,51 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 			//BleGattcClose()
 		case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
 			ShowConnParms(ConnectionID)
+		case BLE_EVBLEMSGID_CONN_PARMS_UPDATE_FAIL
+			if (debsw==1) then : print Sep$;"Set ConnParms: FAIL\n" : endif
 		case else
 	endselect
 endfunc 1
 
+// Initialization
 //******************************************************************************
-// main()
-//******************************************************************************
-dim x
-for x=0 to device_addr_overall-1 : msg_cnt[x]=1 : next //инициализация таблицы сообщений
-// Enable high bandwidth
-rc = BleHighBandwidth()
-if UartInfo(0)==0 then : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H")
-else : UartClose() : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H")
-endif
-rc = BleTxPowerSet(TRANSMIT_POWER) //установка мощности передатчика
-// Set Scanning PHYs to CODED PHY, enable extended scanning
-rc = BleScanConfig(0,scan_interval)
-rc = BleScanConfig(1,scan_window)
-rc = BleScanConfig(3,device_addr_overall)
-rc = BleScanConfig(4,BLE_PHY)
-rc = BleScanConfig(5,SCAN_TYPE)
-// Set connection PHYs to CODED PHY, enable extended connection
-rc = BleConnectConfig(10,BLE_PHY)
-rc = BleConnectConfig(11,SCAN_TYPE)
-rc = NvCfgKeySet(206,6)
-rc = NvCfgKeySet(207,2)
-rc = BleGattcOpen(GATT_BUF, 0)
-PRINT "-Hello! I'm "
-select BLE_PHY
-	case 1
-		print "1M BLE"
-	case 2
-		print "2M BL5"
-	case 4
-		print "CODED BL5"
-	case else
-endselect
-print " modem\n"
-print "-Write '0-' for help, '11-' for hardware parameters\n"
+sub Init()
+	dim x
+	for x=0 to device_addr_overall-1 : msg_cnt[x]=1 : next	//init msgs table
+	BleHighBandwidth()	// Enable high bandwidth
+	if UartInfo(0)==0 then : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H")
+	else : UartClose() : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H")
+	endif
+	rc = BleTxPowerSet(TRANSMIT_POWER) //установка мощности передатчика
+	// Set Scanning PHYs to CODED PHY, enable extended scanning
+	rc = BleScanConfig(0,scan_interval)
+	rc = BleScanConfig(1,scan_window)
+	rc = BleScanConfig(3,device_addr_overall)
+	rc = BleScanConfig(4,BLE_PHY)
+	rc = BleScanConfig(5,SCAN_TYPE)
+	// Set connection PHYs to CODED PHY, enable extended connection
+	rc = BleConnectConfig(10,BLE_PHY)
+	rc = BleConnectConfig(11,SCAN_TYPE)
+	rc = NvCfgKeySet(206,6)
+	rc = NvCfgKeySet(207,2)
+	rc = BleGattcOpen(GATT_BUF, 0)
+	print Sep$;"Hello! I'm "
+	select BLE_PHY
+		case 1
+			print "BL4 1M"
+		case 2
+			print "BL5 2M"
+		case 4
+			print "BL5 CODED"
+		case else
+	endselect
+	print " modem."
+	dim RealAddr$:RealAddr$ = SYSINFO$(4)
+	print " My address "; strhexize$(RealAddr$);". Transmitter power "; SysInfo(2008);"\n"
+	print Sep$;"Write '0";Sep$;"' for help, '11";Sep$;"' for hardware parameters\n"
+endsub
+Init()
 
-//------------------------------------------------------------------------------
-// Enable synchronous event handlers
-//------------------------------------------------------------------------------
 // Generic BLE events
 OnEvent	EVBLE_SCAN_TIMEOUT  	call HandlerBlrScanTimOut
 OnEvent	EVBLE_ADV_REPORT    	call HandlerAdvRpt
@@ -263,7 +264,8 @@ OnEvent	EVUARTRX 				call HndlrUartRx
 // BLE PHY
 OnEvent	EVBLE_PHY_UPDATED  		call HandlerPhyChngd
 OnEvent	EVBLE_PHY_REQUEST  		call HandlerPhyReq
-// Timer for test string sending
-OnEvent EVTMR0 					call SendKbytes
+// Timers
+OnEvent EVTMR0 					call ParallelHandler
 // Wait for a synchronous event
 WaitEvent
+Reset(0)
