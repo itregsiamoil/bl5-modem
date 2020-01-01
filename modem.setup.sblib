@@ -25,7 +25,7 @@ dim RXHandle:RxHandle=						16	//RX handle (MI-18,MO-16,RX-21,TX-23,MOCCCD-24)
 dim TXHandle:TXHandle=						19	//TX handle //Hardcoded GATT attributes of remote BL654
 dim TXCCCDHandle:TXCCCDHandle=				20	//TX CCCD handle
 dim nAttributeLength:nAttributeLength=		20	//Default Attribute Data Length on BL654s
-dim Sep$:Sep$=								"*"	//commands separator
+#define Sep									"*"	//commands separator
 
 //******************************************************************************
 // Const
@@ -35,10 +35,10 @@ dim Sep$:Sep$=								"*"	//commands separator
 #define AdvTypeMicrosoft					6//"0006" hex-dec
 #define AdvTypeApple						76//"004C"
 #define AdvTypeHuami						343//"004C"
-dim DevTypeMicrosoft$:DevTypeMicrosoft$=	"MicrosoftBeacon"
-dim DevTypeApple$:DevTypeApple$=			"AppleBeacon"
-dim DevTypeHuami$:DevTypeHuami$=			"Anhui Huami"
-dim DevTypeUnknw$:DevTypeUnknw$=			"UnknwBeacon"
+#define DevTypeMicrosoft					"MicrosoftBeacon"
+#define DevTypeApple						"AppleBeacon"
+#define DevTypeHuami						"Anhui Huami"
+#define DevTypeUnknw						"UnknwBeacon"
 #define TestStr	"1234567890qwertyuiop0987654321asdfghjkl;1234567890zxcvbnm,./1234567890qwertyuiop0987654321asdfghjkl;"
 
 //******************************************************************************
