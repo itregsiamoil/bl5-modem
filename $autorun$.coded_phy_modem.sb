@@ -87,7 +87,7 @@ function HndlrUartRx()
 	uLen = UartReadMatch(urx$, 0x0D) //Read data from UART
 	if (uLen>0) then
 		urx$=left$(urx$,uLen-1) //удаление из буфера 0x0D
-		rc=str_to_id() //получение номера команды
+		rc=str_to_id(urx$,1) //получение номера команды
 		CommandParser(rc)
 		urx$=""
 	endif

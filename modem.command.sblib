@@ -39,17 +39,17 @@ HelpTable$[ResetMdm]=") reset modem"
 
 // Parsing command parametr
 //==============================================================================
-function str_to_id()
+function str_to_id(buf$,cleaning)
 	dim input_param$,param,SepPos,sepstr$
 	sepstr$=Sep
-	SepPos=StrPos(urx$,sepstr$,0)
+	SepPos=StrPos(buf$,sepstr$,0)
 	if (SepPos==-1) then 
 		param=-1
 		print Sep;"Cmnd separator '";Sep;"' not found\n"
 	else
-		input_param$=Left$(urx$,SepPos)
+		input_param$=Left$(buf$,SepPos)
 		param=strvaldec(input_param$)
-		StrShiftLeft(urx$,SepPos+1)
+		if (cleaning==1) then : StrShiftLeft(buf$,SepPos+1) : endif
 	endif
 endfunc param
 
@@ -228,12 +228,11 @@ function ParallelHandler()
 					if (debsw==1) then : print Sep;"beac=";strhexize$(beacondev$);" (";beacondev;")\n" : endif
 					select beacondev
 						case AdvTypeMicrosoft
-							beacondev$=DevTypeMicrosoft
-							break
+							beacondev$=DevTypeMicrosoft : break
 						case AdvTypeApple
-							beacondev$=DevTypeApple
+							beacondev$=DevTypeApple : break
 						case AdvTypeHuami
-							beacondev$=DevTypeHuami
+							beacondev$=DevTypeHuami : break
 						case else
 							dim half1,half2
 							half1=strgetchr(beacondev$,0)
@@ -320,7 +319,7 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case ConnToDev
-			ad_from_table=str_to_id()
+			ad_from_table=str_to_id(urx$,1)
 			if ad_from_table==-1 then : break : endif
 			if ad_from_table>device_addr_overall then
 				print Sep;integer.d'ConnToDev;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
@@ -345,7 +344,7 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case ScanSvcChar
-			CurrConnId=str_to_id()
+			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
 			rc=CheckConnId(ScanSvcChar,CurrConnId)
 			if rc>-1 then
@@ -357,11 +356,11 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case ScanDesc
-			CurrConnId=str_to_id()
+			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
 			rc=CheckConnId(ScanDesc,CurrConnId)
 			if rc>-1 then
-				rc=str_to_id()
+				rc=str_to_id(urx$,1)
 				if rc>-1 then
 					print Sep;integer.d'ScanDesc;Sep;"Start scanning descriptors:\n"
 					rc = BleDiscDescFirst(conn_table(CurrConnId),0,rc)
@@ -372,17 +371,18 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case SetupSendSvc
-			CurrConnId=str_to_id()
+			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
 			rc=CheckConnId(SetupSendSvc,CurrConnId)
 			if rc>-1 then
-				rc=str_to_id()
+				rtn_handlers_table$(CurrConnId)=urx$
+				rc=str_to_id(urx$,1)
 				if rc>-1 then
 					RxHandle=rc
-					rc=str_to_id()
+					rc=str_to_id(urx$,1)
 					if rc>-1 then
 						TXHandle=rc
-						rc=str_to_id()
+						rc=str_to_id(urx$,1)
 						if rc>-1 then
 							TXCCCDHandle=rc
 							print Sep;integer.d'SetupSendSvc;Sep;"RX svc set:";RxHandle
@@ -397,16 +397,21 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case SendToDev
-			CurrConnId=str_to_id()
+			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
 			rc=CheckConnId(SendToDev,CurrConnId)
 			if rc>-1 then
-				data_table$[CurrConnId]=urx$
+				data_table$[CurrConnId]=strdehexize$(urx$)
 				if (CurrConnId==PrevConnId) then
 					do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
 					until rc==0
 					PrevConnId=CurrConnId
 				else
+					dim temp_rtn$ : temp_rtn$=rtn_handlers_table$(CurrConnId)
+					RxHandle=str_to_id(temp_rtn$,1)
+					TXHandle=str_to_id(temp_rtn$,1)
+					TXCCCDHandle=str_to_id(temp_rtn$,1)
+					if (debsw==1) then : print "handlers:";RxHandle;"/";TXHandle;"/";TXCCCDHandle;"\n" : endif
 					if (strlen(data_table$[PrevConnId])!=0) then
 						if (debsw==1) then : print Sep;"Old conn send\n" : endif
 						do : rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
@@ -422,12 +427,12 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case SendTestData
-			CurrConnId=str_to_id()
+			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
 			SendTestFlag=1
 			rc=CheckConnId(SendTestData,CurrConnId)
 			if rc>-1 then
-				kbytes=str_to_id()
+				kbytes=str_to_id(urx$,1)
 				if (kbytes>-1) then
 					data_table$[CurrConnId]=TestStr
 					do : rc=SendToBle(conn_table(CurrConnId),data_table$[CurrConnId])
@@ -438,7 +443,7 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case DisConn
-			CurrConnId=str_to_id()
+			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
 			rc=CheckConnId(DisConn,CurrConnId)
 			if rc>-1 then
@@ -450,19 +455,16 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case DebudSwitch	
-			rc=str_to_id()
+			rc=str_to_id(urx$,1)
 			if rc==-1 then : break : endif
 			print Sep;integer.d'DebudSwitch;Sep;"Debug "
 			select rc
 				case 0
-					debsw=rc
-					print "off\n"
+					debsw=rc : print "off\n" : break
 				case 1 
-					debsw=rc
-					print "on\n"
+					debsw=rc : print "on\n" : break
 				case 2
-					debsw=rc
-					print "msg timer on\n"
+					debsw=rc : print "msg timer on\n" : break
 				case else
 					print "available states 0/1/2\n"
 			endselect
@@ -483,11 +485,11 @@ sub CommandParser(CmdNum)
 			print " PHY protocol="
 			select BLE_PHY
 				case BLE_1M_PHY
-					print "BL4 1M\n"
+					print "BL4 1M\n" : break
 				case BLE_2M_PHY
-					print "BL5 2\n"
+					print "BL5 2\n" : break
 				case BLE_CODED_PHY
-					print "BL5 CODED\n"
+					print "BL5 CODED\n" : break
 				case else
 			endselect
 			print " Flash DATA total="; SysInfo(601);" free="; SysInfo(602);"\n"
@@ -499,19 +501,19 @@ sub CommandParser(CmdNum)
 			print " Radio activity="
 			select SysInfo(2016)
 				case 0
-					print "None\n"
+					print "None\n" : break
 				case 1
-					print "Advertising\n"
+					print "Advertising\n" : break
 				case 2
-					print "Connected as slave\n"
+					print "Connected as slave\n" : break
 				case 4
-					print "Initaiting a connection\n"
+					print "Initaiting a connection\n" : break
 				case 8
-					print "Scanning for adverts\n"
+					print "Scanning for adverts\n" : break
 				case 16
-					print "Connected as master\n"
+					print "Connected as master\n" : break
 				case 24
-					print "Scan while connected as master\n"
+					print "Scan while connected as master\n" : break
 				case else
 					print SysInfo(2016);"\n"
 			endselect
@@ -541,7 +543,7 @@ sub CommandParser(CmdNum)
 			next
 		//-------------------------------------------------------------------------------
 		case ChangePhy
-			rc=str_to_id()
+			rc=str_to_id(urx$,1)
 			if rc==-1 then : break : endif
 			print Sep;"PHY "
 			select rc
@@ -549,15 +551,15 @@ sub CommandParser(CmdNum)
 					BLE_PHY=BLE_1M_PHY
 					SCAN_TYPE=BLE_NORMAL_SCANNING
 					HIGH_BANDWIDTH=0
-					print "BL4 1M mode\n"
+					print "BL4 1M mode\n" : break
 				case 2
 					BLE_PHY=BLE_2M_PHY
-					print "BL5 2M mode\n"
+					print "BL5 2M mode\n" : break
 				case 4
 					BLE_PHY=BLE_CODED_PHY
 					SCAN_TYPE=BLE_EXTENDED_SCANNING
 					HIGH_BANDWIDTH=1
-					print "BL5 CODED mode\n"
+					print "BL5 CODED mode\n" : break
 				case else
 					print "available states 1/2/4\n"
 			endselect
@@ -572,27 +574,27 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case ChangePower
-			rc=str_to_id()
+			rc=str_to_id(urx$,1)
 			if rc==-1 then : break : endif
 			select rc
 				case -8
-				break
+					break
 				case -6
-				break
+					break
 				case -4
-				break
+					break
 				case -2
-				break
+					break
 				case 0
-				break
+					break
 				case 2
-				break
+					break
 				case 4
-				break
+					break
 				case 6
-				break
+					break
 				case 8
-				break
+					break
 				case else
 					rc=-1
 			endselect

@@ -34,7 +34,7 @@ dim nAttributeLength:nAttributeLength=		20	//Default Attribute Data Length on BL
 #define USE_STRINT_IN_EVENTS_KEY_ID         213	// CFG ID 213
 #define AdvTypeMicrosoft					6//"0006" hex-dec
 #define AdvTypeApple						76//"004C"
-#define AdvTypeHuami						343//"004C"
+#define AdvTypeHuami						343//"0157"
 #define DevTypeMicrosoft					"MicrosoftBeacon"
 #define DevTypeApple						"AppleBeacon"
 #define DevTypeHuami						"Anhui Huami"
@@ -57,6 +57,7 @@ dim data_table$[device_addr_overall]	//массив передаваемых д�
 dim adv_table$[device_addr_overall]		//массив данных адвертайзинг сообщений под каждый адрес
 dim advpars_table$[device_addr_overall]	//массив разобранных данных адвертайзинг сообщений под каждый адрес
 dim conn_table[device_addr_overall]		//массив идентификаторов соединений
+dim rtn_handlers_table$[device_addr_overall]	//RX-TX-CCCD handlers for data transfer to device
 dim rc,ConnectionID,CurrConnId,PrevConnId,PrevHndl
 dim sendcount,kbytes,SendTestFlag
 
