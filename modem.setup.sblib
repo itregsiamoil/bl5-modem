@@ -49,15 +49,18 @@ dim dev_cnt,conn_cnt,advpars_cnt
 dim ParalHandlWork,LastTick
 dim BufferState							//ble buffer state
 dim debsw								//переключатель режимов отладки
+dim AscOrHexSwitch						//send ascii or hex switch
 dim urx$ : urx$ = ""                	//UART read buffer
 dim BleBuf$ : BleBuf$ = ""          	//VSP read buffer
 dim msg_cnt[device_addr_overall]		//массив количества адвертайзинг сообщений под каждый адрес
+dim conn_table[device_addr_overall]		//массив идентификаторов соединений
 dim addr_table$[device_addr_overall]	//адреса найденных девайсов в hex
 dim data_table$[device_addr_overall]	//массив передаваемых данных под каждое соединение
 dim adv_table$[device_addr_overall]		//массив данных адвертайзинг сообщений под каждый адрес
 dim advpars_table$[device_addr_overall]	//массив разобранных данных адвертайзинг сообщений под каждый адрес
-dim conn_table[device_addr_overall]		//массив идентификаторов соединений
 dim rtn_handlers_table$[device_addr_overall]	//RX-TX-CCCD handlers for data transfer to device
+dim svc_table$[device_addr_overall]	//device services table
+dim chr_table$[device_addr_overall]	//device characteristics table
 dim rc,ConnectionID,CurrConnId,PrevConnId,PrevHndl
 dim sendcount,kbytes,SendTestFlag
 
