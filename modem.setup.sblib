@@ -45,7 +45,7 @@ dim nAttributeLength:nAttributeLength=		20	//Default Attribute Data Length on BL
 // Global Variable Declarations
 //******************************************************************************
 dim ad_from_table
-dim dev_cnt,conn_cnt,advpars_cnt
+dim dev_cnt,conn_cnt,advpars_cnt,char_cnt,svc_cnt,desc_cnt
 dim ParalHandlWork,LastTick
 dim BufferState							//ble buffer state
 dim debsw								//переключатель режимов отладки
@@ -59,9 +59,12 @@ dim data_table$[device_addr_overall]	//массив передаваемых д�
 dim adv_table$[device_addr_overall]		//массив данных адвертайзинг сообщений под каждый адрес
 dim advpars_table$[device_addr_overall]	//массив разобранных данных адвертайзинг сообщений под каждый адрес
 dim rtn_handlers_table$[device_addr_overall]	//RX-TX-CCCD handlers for data transfer to device
-dim svc_table$[device_addr_overall]	//device services table
-dim chr_table$[device_addr_overall]	//device characteristics table
-dim rc,ConnectionID,CurrConnId,PrevConnId,PrevHndl
+dim svc_table$[20]	//device services table
+dim chr_table$[50]	//device characteristics table
+dim desc_table$[20]	//device descriptors table
+dim handlers_table[50]
+dim rc,temp,temp$
+dim ConnectionID,CurrConnId,PrevConnId
 dim sendcount,kbytes,SendTestFlag
 
 //BLE EVENT MSG IDs

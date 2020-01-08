@@ -4,18 +4,19 @@
 // Handler for recieve and store advert messages
 //-------------------------------------------------------------------------------
 sub AdvertRecieve (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$,phy)
-	dim i,additions$
+	dim additions$
 	additions$="044000000000"
 	additions$=strdehexize$(additions$)
 	rc=strsetchr(additions$,ABS(rsi),2)
 	rc=strsetchr(additions$,phy,3)
 	rc=strsetchr(additions$,advchan,4)
 	rc=strsetchr(additions$,ndisc,5)
-	for i=0 to device_addr_overall-1
-		rc=StrCmp(ad$,addr_table$[i])
+	temp=0
+	for temp=0 to device_addr_overall-1
+		rc=StrCmp(ad$,addr_table$[temp])
 		if (rc==0) then			//if found increase msg count
-			if (msg_cnt[i]==1) then : adv_table$[i]=dta$+additions$ : endif
-			msg_cnt[i]=msg_cnt[i]+1
+			if (msg_cnt[temp]==1) then : adv_table$[temp]=dta$+additions$ : endif
+			msg_cnt[temp]=msg_cnt[temp]+1
 			break
 		endif
 	next
@@ -83,10 +84,9 @@ endfunc 1
 // This handler is called when data recieved through UART
 //==============================================================================
 function HndlrUartRx() 
-	dim uLen
-	uLen = UartReadMatch(urx$, 0x0D) //Read data from UART
-	if (uLen>0) then
-		urx$=left$(urx$,uLen-1) //удаление из буфера 0x0D
+	rc = UartReadMatch(urx$, 0x0D) //Read data from UART
+	if (rc>0) then
+		urx$=left$(urx$,rc-1) //удаление из буфера 0x0D
 		rc=str_to_id(urx$,1) //получение номера команды
 		CommandParser(rc)
 		urx$=""
@@ -97,10 +97,10 @@ endfunc 1
 //==============================================================================
 function HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL nType AS INTEGER, BYVAL nLength AS INTEGER,BYVAL data$ AS STRING)
     if (hAttr == TXHandle) then	
-		dim i
-        for i=0 to device_addr_overall-1
-			if (hConn==conn_table[i]) then
-				print Sep;integer.d'SendToDev;Sep;i;Sep;nLength;Sep;Data$;"\n" // Just print data that we got 
+		temp=0
+        for temp=0 to device_addr_overall-1
+			if (hConn==conn_table[temp]) then
+				print Sep;integer.d'SendToDev;Sep;temp;Sep;nLength;Sep;Data$;"\n" // Just print data that we got 
 				if (debsw==2) then
 					print "time=";GetTickCount()-LastTick;"\n"
 					LastTick=GetTickCount()
@@ -115,15 +115,14 @@ endfunc 1
 // This function is used to configure the BL654 to use high bandwidth
 //-------------------------------------------------------------------------------
 sub BleHighBandwidth()
-	dim HighBandwidth,StringEvent
-	rc = NvCfgKeyGet(USE_STRINT_IN_EVENTS_KEY_ID, StringEvent) // Get High bandwidth value
-	if  (StringEvent != USE_STRING_IN_EVENTS) then
+	rc = NvCfgKeyGet(USE_STRINT_IN_EVENTS_KEY_ID, temp) // Get High bandwidth value
+	if  (temp != USE_STRING_IN_EVENTS) then
 		// Allow data to be thrown in messages (i.e. Use EVATTRNOTifYEX instead of EVATTRNOTifY)
 		rc = NvCfgKeySet(USE_STRINT_IN_EVENTS_KEY_ID, USE_STRING_IN_EVENTS)
 		Reset(0)
     endif
-    rc = NvCfgKeyGet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HighBandwidth) // Get High bandwidth value
-    if  (HighBandwidth != HIGH_BANDWIDTH) then
+    rc = NvCfgKeyGet(ENABLE_HIGH_BANDWIDTH_KEY_ID, temp) // Get High bandwidth value
+    if  (temp != HIGH_BANDWIDTH) then
         // Change the bandwidth configuration to HIGH (6 packets per interval)
         rc = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HIGH_BANDWIDTH)
         // Reset the module so that the data is overwritten  
@@ -187,16 +186,16 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 			conn_table[ad_from_table]=ConnectionID
 			conn_cnt=conn_cnt+1
 			ShowConnParms(ConnectionID)	
-			dim CCCD_ON$:CCCD_ON$ = "\01\00"
-			rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, CCCD_ON$)
+			temp$ = "\01\00"
+			rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, temp$)
 			rc = BleSetCurConnParms(ConnectionID,minConnInterval,10000,5000000,0)
 		case BLE_EVBLEMSGID_DISCONNECT
-			dim i
 			ConnectionID = nCtx
-			for i=0 to device_addr_overall-1
-				if (ConnectionID==conn_table[i]) then
-					print Sep;integer.d'DisConn;Sep;i;Sep;"Disconnected!\n"
-					conn_table[i]=0
+			temp=0
+			for temp=0 to device_addr_overall-1
+				if (ConnectionID==conn_table[temp]) then
+					print Sep;integer.d'DisConn;Sep;temp;Sep;"Disconnected!\n"
+					conn_table[temp]=0
 					conn_cnt=conn_cnt-1
 					break
 				endif
@@ -241,9 +240,9 @@ sub Init()
 		case else
 	endselect
 	print " modem."
-	dim RealAddr$:RealAddr$ = SYSINFO$(4)
-	print " My address "; strhexize$(RealAddr$);". Transmitter power "; SysInfo(2008);".\n"
-	print Sep;"Write '0";Sep;"' for help, '11";Sep;"' for hardware parameters\n"
+	temp$ = SYSINFO$(4)
+	print " My address "; strhexize$(temp$);". Transmitter power "; SysInfo(2008);".\n"
+	print Sep;"Write ";integer.d'Help;Sep;" for help, ";integer.d'ModemParams;Sep;" for hardware parameters\n"
 endsub
 Init()
 
