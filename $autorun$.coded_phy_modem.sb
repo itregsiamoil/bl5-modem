@@ -98,7 +98,8 @@ function HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL 
     if (hAttr == TXHandle) then	
         for temp=0 to device_addr_overall-1
 			if (hConn==conn_table[temp]) then
-				print Sep;integer.d'SendToDev;Sep;temp;Sep;nLength;Sep;Data$;"\n" // Just print data that we got 
+				if AscOrHexSw==0 then : data$=strhexize$(data$) : endif
+				print Sep;integer.d'SendToDev;Sep;temp;Sep;nLength;Sep;data$;"\n" // Just print data that we got 
 				if (debsw==2) then
 					print "time=";GetTickCount()-LastTick;"\n"
 					LastTick=GetTickCount()
@@ -107,7 +108,7 @@ function HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL 
 			endif
 		next
     endif
-    Data$ = ""
+    data$ = ""
 endfunc 1
 		
 // This function is used to configure the BL654 to use high bandwidth

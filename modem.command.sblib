@@ -22,12 +22,12 @@ dim HelpTable$[NumCmnds]
 #define StopApp				17
 #define ResetMdm			18
 HelpTable$[Help]=") print all comands list"
-HelpTable$[ScanDev]=") unlimit scan BLE devices"
+HelpTable$[ScanDev]=") 20sec scan BLE devices"
 HelpTable$[StopScanDev]=") stop scan BLE devices"
 HelpTable$[ConnToDev]="add"+Sep+") connect to selected device from table"
 HelpTable$[ScanSvcChrDesc]="conn"+Sep+") create list of services and characteristics from device"
 HelpTable$[ScanDesc]="conn"+Sep+"char"+Sep+") create list of descriptors from select characteristic"
-HelpTable$[SetupSendSvc]="conn"+Sep+"rx"+Sep+"tx"+Sep+"ntf"+Sep+") setup RX-TX-CCCD characteristics to chat with selected device from table"
+HelpTable$[SetupSendSvc]="conn"+Sep+"rx"+Sep+"tx"+Sep+") setup RX-TX characteristics to chat with selected device"
 HelpTable$[SendToDev]="conn"+Sep+"data"+Sep+") send data to selected device from table"
 HelpTable$[SendTestData]="conn"+Sep+"n"+Sep+") send test string (100*n bytes) to selected device from table"
 HelpTable$[DisConn]="conn"+Sep+") disconnect from selected device from table"
@@ -72,15 +72,15 @@ function CheckConnId(cmnd,id)
 		else
 			if cmnd==ConnToDev then
 				temp=1
-				print Sep;integer.d'cmnd;Sep;"First connection\n"
+				print Sep;cmnd;Sep;"First connection\n"
 			else
 				temp=-1
-				print Sep;integer.d'cmnd;Sep;"Connection id not exist in table\n"
+				print Sep;cmnd;Sep;"Connection id not exist in table\n"
 			endif
 		endif
 	else
 		temp=-1
-		print Sep;integer.d'cmnd;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
+		print Sep;cmnd;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
 	endif
 endfunc temp
 
@@ -121,7 +121,7 @@ function HndlrPrimSvc(cHndl,svcUuid,sHndl,eHndl) as integer
 	if svcUuid!=0 then
 		sprint #uuid$,integer.h'svcUuid
 		StrShiftLeft(uuid$,4)
-		sprint #temp$,"SVC:";uuid$;" H:";integer.d'sHndl;"-";integer.d'eHndl
+		sprint #temp$,"SVC:";uuid$;" H:";sHndl;"-";eHndl
 		svc_table$(svc_cnt)=temp$
 		svc_cnt=svc_cnt+1
 	endif
@@ -164,11 +164,11 @@ function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
 			case 48
 				prop$="n/i-w-cccd" : break
 			case else
-				sprint #prop$,integer.d'cProp
+				sprint #prop$,cProp
 		endselect
 		sprint #uuid$,integer.h'cUuid
 		StrShiftLeft(uuid$,4)
-		sprint #temp$,"CHR:";uuid$;"(";prop$;")";" H:";integer.d'hVal
+		sprint #temp$,"CHR:";uuid$;"(";prop$;")";" H:";hVal
 		chr_table$(char_cnt)=temp$
 		chr_handlers_table(char_cnt)=hVal
 		char_cnt=char_cnt+1
@@ -191,9 +191,8 @@ function HandlerDescDisc(cHndl,cUuid,hndl) as integer
 	if cUuid!=0 then 
 		sprint #uuid$,integer.h'cUuid
 		StrShiftLeft(uuid$,4)
-		sprint #temp$,"DES:";uuid$;" H:";integer.d'hndl
+		sprint #temp$,"DES:";uuid$;" H:";hndl
 		desc_table$(desc_cnt)=temp$
-		desc_handlers_table(desc_cnt)=hndl
 		desc_cnt=desc_cnt+1
 	endif
 	IF hndl == 0 THEN
@@ -258,7 +257,7 @@ function ParallelHandler()
 				advpars_table$[advpars_cnt]=localname$+Sep+beacondev$
 				//sprint #advpars_table$[advpars_cnt],advpars_table$[advpars_cnt];integer.d'rsi
 				print Sep;integer.d'ScanDev;Sep;phy$;" device №";advpars_cnt;Sep; strhexize$(addr_table$[advpars_cnt])					
-				print Sep;advpars_table$[advpars_cnt];Sep;"RSSI=-";integer.d'rsi;"\n"
+				print Sep;advpars_table$[advpars_cnt];Sep;"RSSI=-";rsi;"\n"
 				type=0 : size=0 : advpars_cnt=advpars_cnt+1
 			endif
 			break
@@ -286,7 +285,7 @@ sub CommandParser(CmdNum)
 		//-------------------------------------------------------------------------------
 		case Help
 			print Sep;integer.d'CmdNum;Sep;"List of supported commands:\n"
-			for temp=0 to NumCmnds-1 : print " (";integer.d'temp;Sep;HelpTable$[temp];"\n" : next
+			for temp=0 to NumCmnds-1 : print " (";temp;Sep;HelpTable$[temp];"\n" : next
 			break
 		//-------------------------------------------------------------------------------
 		case ScanDev
@@ -379,17 +378,23 @@ sub CommandParser(CmdNum)
 					if rc==0 then : WAITEVENT : endif
 				next
 				if NotifySw==1 then
-					print Sep;integer.d'ScanSvcChrDesc;Sep;"All CCCD enabled\n"
 					for temp=0 to desc_cnt-1
 						temp$=mid$(desc_table$(temp),4,4)
 						rc=strvaldec(temp$)
 						if (rc==2902) then
+							dim handler
+							temp$="H:"
+							handler=StrPos(desc_table$(temp),temp$,7)
+							temp$=mid$(desc_table$(temp),handler+2,2)
+							handler=strvaldec(temp$)
+							//print "temp-";temp$;handler;"\n"
 							temp$ = "\01\00"
-							rc = BLEGATTCWRITE(conn_table(CurrConnId),desc_handlers_table(temp),temp$)
+							rc = BLEGATTCWRITE(conn_table(CurrConnId),handler,temp$)
 							if rc==0 then : WAITEVENT : endif
-							print "handler:";desc_handlers_table(temp);" set to 1\n"
+							if (debsw==1) then : print "handler:";handler;" set to 1\n" : endif
 						endif
 					next
+					print Sep;integer.d'ScanSvcChrDesc;Sep;"All notify CCCD enabled\n"
 				endif
 				print Sep;integer.d'ScanSvcChrDesc;Sep;"Services/characteristics/descriptors count:";svc_cnt;"/";char_cnt;"/";desc_cnt;"\n"
 				for temp=0 to svc_cnt-1
@@ -432,16 +437,8 @@ sub CommandParser(CmdNum)
 					rc=str_to_id(urx$,1)
 					if rc>-1 then
 						TXHandle=rc
-						rc=str_to_id(urx$,1)
-						if rc>-1 then
-							TXCCCDHandle=rc
-							print Sep;integer.d'SetupSendSvc;Sep;"RX svc set:";RxHandle
-							print ", TX svc set:";TXHandle
-							temp$ = "\01\00"
-							rc = BLEGATTCWRITE(conn_table(CurrConnId), TXCCCDHandle, temp$)
-							if rc==0 then : WAITEVENT : endif
-							if rc==0 then : print ", CCCD for:";TXCCCDHandle;" enabled\n" : endif
-						endif
+						print Sep;integer.d'SetupSendSvc;Sep;"RX svc set:";RxHandle
+						print ", TX svc set:";TXHandle;"\n"
 					endif
 				endif
 			endif
@@ -525,13 +522,9 @@ sub CommandParser(CmdNum)
 		//-------------------------------------------------------------------------------
 		case ModemParams
 			dim fw,w,x,y,z
-			fw=SysInfo(3)
-			w=fw>>24
-			fw=fw-(w<<24)
-			x=fw>>18
-			fw=fw-(x<<18)
-			y=fw>>6
-			fw=fw-(y<<6)
+			fw=SysInfo(3) : w=fw>>24 : fw=fw-(w<<24)
+			x=fw>>18 : fw=fw-(x<<18)
+			y=fw>>6 : fw=fw-(y<<6)
 			z=fw
 			print " FW version=";w;".";x;".";y;".";z;"\n"
 			print " Tx power="; SysInfo(2008);"\n"
@@ -573,17 +566,31 @@ sub CommandParser(CmdNum)
 			dim t as float
 			t=SysInfo(2024)
 			t=t/10.0
-			print " Temperature=";float.f't;"\n"
+			print " Temperature=";t;"\n"
 			dim v as float
 			v=SysInfo(2026)
 			v=v/1000.0
-			print " Supply voltage=";float.f'v;"\n"
+			print " Supply voltage=";v;"\n"
 			print " FWStartTime="; SysInfo(2080);"ms\n"
-			dim pcon,centcon
-			rc=NvCfgKeyGet(205,pcon)
-			print " AvailNumPeriphConn=";pcon;"\n"
-			rc=NvCfgKeyGet(206,centcon)
-			print " AvailNumCentrConn=";centcon;"\n"
+			// dim pcon,centcon
+			// rc=NvCfgKeyGet(205,pcon)
+			// print " AvailNumPeriphConn=";pcon;"\n"
+			// rc=NvCfgKeyGet(206,centcon)
+			// print " AvailNumCentrConn=";centcon;"\n"
+			print " Data send as: "
+			if AscOrHexSw==0 then : print "HEX\n" : else : print "ASCII\n" : endif
+			print " CCCD flag setup at scan: "
+			if NotifySw==0 then : print "OFF\n" : else : print "ON\n" : endif
+			print " Debug:"
+			select debsw
+				case 0
+					print "OFF\n" : break
+				case 1 
+					print "ON\n" : break
+				case 2
+					print "msg timer on\n" : break
+				case else
+			endselect
 			break
 		//-------------------------------------------------------------------------------
 		case ActiveConn
