@@ -1,12 +1,12 @@
 // Command list
 //-------------------------------------------------------------------------------
-#define NumCmnds			18
+#define NumCmnds			19
 dim HelpTable$[NumCmnds]
 #define Help				0
 #define ScanDev				1
 #define StopScanDev			2
 #define ConnToDev			3
-#define ScanSvcChar			4
+#define ScanSvcChrDesc		4
 #define ScanDesc			5
 #define SetupSendSvc		6
 #define SendToDev			7
@@ -18,13 +18,14 @@ dim HelpTable$[NumCmnds]
 #define ChangePhy			13
 #define ChangePower			14
 #define SendAsHexOrAsc		15
-#define StopApp				16
-#define ResetMdm			17
+#define EnableAllNotify		16
+#define StopApp				17
+#define ResetMdm			18
 HelpTable$[Help]=") print all comands list"
 HelpTable$[ScanDev]=") unlimit scan BLE devices"
 HelpTable$[StopScanDev]=") stop scan BLE devices"
 HelpTable$[ConnToDev]="add"+Sep+") connect to selected device from table"
-HelpTable$[ScanSvcChar]="conn"+Sep+") create list of services and characteristics from device"
+HelpTable$[ScanSvcChrDesc]="conn"+Sep+") create list of services and characteristics from device"
 HelpTable$[ScanDesc]="conn"+Sep+"char"+Sep+") create list of descriptors from select characteristic"
 HelpTable$[SetupSendSvc]="conn"+Sep+"rx"+Sep+"tx"+Sep+"ntf"+Sep+") setup RX-TX-CCCD characteristics to chat with selected device from table"
 HelpTable$[SendToDev]="conn"+Sep+"data"+Sep+") send data to selected device from table"
@@ -36,6 +37,7 @@ HelpTable$[ActiveConn]=") show number of active connections"
 HelpTable$[ChangePhy]="1/2/4"+Sep+") change modem phy level BL4 1M(1), BL5 2M(2), BL5 CODED(4)"
 HelpTable$[ChangePower]="pwr"+Sep+") -8/-4/0/2/4/6/8 change radio transmit power"
 HelpTable$[SendAsHexOrAsc]="0/1"+Sep+") send data as ASCII(1) or HEX(0)"
+HelpTable$[EnableAllNotify]="0/1"+Sep+") enable(1) all CCCD notify flags at scan"
 HelpTable$[StopApp]=") exit app to AT mode, RESUME to continue run app"
 HelpTable$[ResetMdm]=") reset modem"
 
@@ -117,7 +119,9 @@ endfunc 1
 //==============================================================================
 function HndlrPrimSvc(cHndl,svcUuid,sHndl,eHndl) as integer
 	if svcUuid!=0 then
-		sprint #temp$,"SVC:";integer.h'svcUuid;"(";integer.d'sHndl;"-";integer.d'eHndl;")"
+		sprint #uuid$,integer.h'svcUuid
+		StrShiftLeft(uuid$,4)
+		sprint #temp$,"SVC:";uuid$;" H:";integer.d'sHndl;"-";integer.d'eHndl
 		svc_table$(svc_cnt)=temp$
 		svc_cnt=svc_cnt+1
 	endif
@@ -140,31 +144,33 @@ function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
 		dim prop$
 		select cProp
 			case 2
-				prop$="(r)" : break
+				prop$="r" : break
 			case 4
-				prop$="(w-w/o-resp)" : break
+				prop$="w-w/o-resp" : break
 			case 8
-				prop$="(w)" : break
+				prop$="w" : break
 			case 10
-				prop$="(r/w)" : break
+				prop$="r/w" : break
 			case 16
-				prop$="(n-w-cccd)" : break
+				prop$="n-w-cccd" : break
 			case 18
-				prop$="(r/n-w-cccd)" : break
+				prop$="r/n-w-cccd" : break
 			case 24
-				prop$="(w/n-w-cccd)" : break
+				prop$="w/n-w-cccd" : break
 			case 26
-				prop$="(r/w/n-w-cccd)" : break
+				prop$="r/w/n-w-cccd" : break
 			case 32
-				prop$="(i-w-cccd)" : break
+				prop$="i-w-cccd" : break
 			case 48
-				prop$="(n/i-w-cccd)" : break
+				prop$="n/i-w-cccd" : break
 			case else
-				sprint #prop$,"(";integer.d'cProp;")"
+				sprint #prop$,integer.d'cProp
 		endselect
-		sprint #temp$,"CHR:";integer.h'cUuid;prop$;"(";integer.d'hVal;")"
+		sprint #uuid$,integer.h'cUuid
+		StrShiftLeft(uuid$,4)
+		sprint #temp$,"CHR:";uuid$;"(";prop$;")";" H:";integer.d'hVal
 		chr_table$(char_cnt)=temp$
-		handlers_table(char_cnt)=hVal
+		chr_handlers_table(char_cnt)=hVal
 		char_cnt=char_cnt+1
 	endif
 	if hVal == 0 then
@@ -183,8 +189,11 @@ endfunc 1
 //==============================================================================
 function HandlerDescDisc(cHndl,cUuid,hndl) as integer
 	if cUuid!=0 then 
-		sprint #temp$,"DES:";integer.h'cUuid;"(";integer.d'hndl;")"
+		sprint #uuid$,integer.h'cUuid
+		StrShiftLeft(uuid$,4)
+		sprint #temp$,"DES:";uuid$;" H:";integer.d'hndl
 		desc_table$(desc_cnt)=temp$
+		desc_handlers_table(desc_cnt)=hndl
 		desc_cnt=desc_cnt+1
 	endif
 	IF hndl == 0 THEN
@@ -277,13 +286,11 @@ sub CommandParser(CmdNum)
 		//-------------------------------------------------------------------------------
 		case Help
 			print Sep;integer.d'CmdNum;Sep;"List of supported commands:\n"
-			temp=0
 			for temp=0 to NumCmnds-1 : print " (";integer.d'temp;Sep;HelpTable$[temp];"\n" : next
 			break
 		//-------------------------------------------------------------------------------
 		case ScanDev
 			dim sphy
-			temp=0
 			for temp=0 to device_addr_overall-1
 				if conn_table[temp]==0 then //reinit all tables except connected devices
 					addr_table$[temp]=""
@@ -314,7 +321,6 @@ sub CommandParser(CmdNum)
 				rc = BleScanFlush()
 			endif
 			print Sep;integer.d'StopScanDev;Sep;dev_cnt;" device in table: \n"
-			temp=0
 			for temp=0 to device_addr_overall-1
 				if (strlen(addr_table$[temp])==0) then : break : endif
 				print Sep;integer.d'StopScanDev;Sep;temp;Sep; strhexize$(addr_table$[temp]);Sep;advpars_table$[temp];Sep;"MSGS=";msg_cnt[temp];"\n"
@@ -346,35 +352,56 @@ sub CommandParser(CmdNum)
 			endif
 			break
 		//-------------------------------------------------------------------------------
-		case ScanSvcChar
+		case ScanSvcChrDesc
 			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
-			rc=CheckConnId(ScanSvcChar,CurrConnId)
+			rc=CheckConnId(ScanSvcChrDesc,CurrConnId)
 			if rc>-1 then
-				print Sep;integer.d'ScanSvcChar;Sep;"Start scanning services and chars:\n"
+				for temp=0 to svc_cnt-1
+					svc_table$(temp)=""
+				next
+				for temp=0 to char_cnt-1
+					chr_table$(temp)=""
+				next
+				for temp=0 to desc_cnt-1
+					desc_table$(temp)=""
+				next
+				svc_cnt=0
+				char_cnt=0
+				desc_cnt=0
+				print Sep;integer.d'ScanSvcChrDesc;Sep;"Start scanning services and chars:\n"
 				rc=BleDiscServiceFirst(conn_table(CurrConnId),0,0)
 				if rc==0 then : WAITEVENT : endif
 				rc=BleDiscCharFirst(conn_table(CurrConnId),0,0,65535)
 				if rc==0 then : WAITEVENT : endif
-				temp=0
 				for temp=0 to char_cnt-1
-					rc = BleDiscDescFirst(conn_table(CurrConnId),0,handlers_table(temp))
+					rc = BleDiscDescFirst(conn_table(CurrConnId),0,chr_handlers_table(temp))
 					if rc==0 then : WAITEVENT : endif
 				next
-				temp=0
-				print Sep;integer.d'ScanSvcChar;Sep;svc_cnt;" services ";char_cnt;" characteristics found:\n"
+				if NotifySw==1 then
+					print Sep;integer.d'ScanSvcChrDesc;Sep;"All CCCD enabled\n"
+					for temp=0 to desc_cnt-1
+						temp$=mid$(desc_table$(temp),4,4)
+						rc=strvaldec(temp$)
+						if (rc==2902) then
+							temp$ = "\01\00"
+							rc = BLEGATTCWRITE(conn_table(CurrConnId),desc_handlers_table(temp),temp$)
+							if rc==0 then : WAITEVENT : endif
+							print "handler:";desc_handlers_table(temp);" set to 1\n"
+						endif
+					next
+				endif
+				print Sep;integer.d'ScanSvcChrDesc;Sep;"Services/characteristics/descriptors count:";svc_cnt;"/";char_cnt;"/";desc_cnt;"\n"
 				for temp=0 to svc_cnt-1
 					print svc_table$(temp);"\n"
 				next
-				temp=0
 				for temp=0 to char_cnt-1
 					print chr_table$(temp);"\n"
 				next
-				temp=0
 				for temp=0 to desc_cnt-1
 					print desc_table$(temp);"\n"
 				next
-				//print Sep;integer.d'ScanSvcChar;Sep;"All service & char finded\n"
+				print Sep;integer.d'ScanSvcChrDesc;Sep;"All services/characteristics/descriptors finded\n"
 			endif
 			break
 		//-------------------------------------------------------------------------------
@@ -412,6 +439,7 @@ sub CommandParser(CmdNum)
 							print ", TX svc set:";TXHandle
 							temp$ = "\01\00"
 							rc = BLEGATTCWRITE(conn_table(CurrConnId), TXCCCDHandle, temp$)
+							if rc==0 then : WAITEVENT : endif
 							if rc==0 then : print ", CCCD for:";TXCCCDHandle;" enabled\n" : endif
 						endif
 					endif
@@ -424,7 +452,7 @@ sub CommandParser(CmdNum)
 			if CurrConnId==-1 then : break : endif
 			rc=CheckConnId(SendToDev,CurrConnId)
 			if rc>-1 then
-				if AscOrHexSwitch==0 then : data_table$[CurrConnId]=strdehexize$(urx$)
+				if AscOrHexSw==0 then : data_table$[CurrConnId]=strdehexize$(urx$)
 				else : data_table$[CurrConnId]=urx$
 				endif
 				if (CurrConnId==PrevConnId) then
@@ -560,7 +588,6 @@ sub CommandParser(CmdNum)
 		//-------------------------------------------------------------------------------
 		case ActiveConn
 			print Sep;integer.d'ActiveConn;Sep;"Number of active connections: ";conn_cnt;"\n"
-			temp=0
 			for temp=0 to device_addr_overall-1
 				if conn_table[temp]>0 then
 					print Sep;integer.d'ActiveConn;Sep;temp;Sep; strhexize$(addr_table$[temp]);Sep;advpars_table$[temp];"\n"
@@ -630,12 +657,27 @@ sub CommandParser(CmdNum)
 			select rc
 				case 0
 					print Sep;integer.d'SendAsHexOrAsc;Sep;"Send as HEX\n"
-					AscOrHexSwitch=rc : break
+					AscOrHexSw=rc : break
 				case 1
 					print Sep;integer.d'SendAsHexOrAsc;Sep;"Send as ASCII\n"
-					AscOrHexSwitch=rc : break
+					AscOrHexSw=rc : break
 				case else
 					print Sep;integer.d'SendAsHexOrAsc;Sep;"Available states 0/1\n"
+			endselect
+			break
+		//-------------------------------------------------------------------------------
+		case EnableAllNotify
+			rc=str_to_id(urx$,1)
+			if rc==-1 then : break : endif
+			select rc
+				case 0
+					print Sep;integer.d'EnableAllNotify;Sep;"CCCD not changes at scan\n"
+					NotifySw=rc : break
+				case 1
+					print Sep;integer.d'EnableAllNotify;Sep;"All CCCD enabled at scan\n"
+					NotifySw=rc : break
+				case else
+					print Sep;integer.d'EnableAllNotify;Sep;"Available states 0/1\n"
 			endselect
 			break
 		//-------------------------------------------------------------------------------

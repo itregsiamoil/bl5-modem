@@ -44,12 +44,14 @@ dim nAttributeLength:nAttributeLength=		20	//Default Attribute Data Length on BL
 //******************************************************************************
 // Global Variable Declarations
 //******************************************************************************
-dim ad_from_table
+dim ad_from_table,ParalHandlWork,LastTick
 dim dev_cnt,conn_cnt,advpars_cnt,char_cnt,svc_cnt,desc_cnt
-dim ParalHandlWork,LastTick
-dim BufferState							//ble buffer state
-dim debsw								//переключатель режимов отладки
-dim AscOrHexSwitch						//send ascii or hex switch
+dim rc,temp,temp$,uuid$
+dim ConnectionID,CurrConnId,PrevConnId
+dim sendcount,kbytes,SendTestFlag,BufferState
+dim debsw:debsw=0
+dim AscOrHexSw:AscOrHexSw=0
+dim NotifySw:NotifySw=1
 dim urx$ : urx$ = ""                	//UART read buffer
 dim BleBuf$ : BleBuf$ = ""          	//VSP read buffer
 dim msg_cnt[device_addr_overall]		//массив количества адвертайзинг сообщений под каждый адрес
@@ -61,11 +63,9 @@ dim advpars_table$[device_addr_overall]	//массив разобранных д
 dim rtn_handlers_table$[device_addr_overall]	//RX-TX-CCCD handlers for data transfer to device
 dim svc_table$[20]	//device services table
 dim chr_table$[50]	//device characteristics table
-dim desc_table$[20]	//device descriptors table
-dim handlers_table[50]
-dim rc,temp,temp$
-dim ConnectionID,CurrConnId,PrevConnId
-dim sendcount,kbytes,SendTestFlag
+dim desc_table$[50]	//device descriptors table
+dim chr_handlers_table[50]
+dim desc_handlers_table[50]
 
 //BLE EVENT MSG IDs
 #define BLE_EVBLEMSGID_CONNECT                         	 0 // nCtx = connection handle

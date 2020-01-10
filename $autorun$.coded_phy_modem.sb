@@ -11,7 +11,6 @@ sub AdvertRecieve (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$,phy)
 	rc=strsetchr(additions$,phy,3)
 	rc=strsetchr(additions$,advchan,4)
 	rc=strsetchr(additions$,ndisc,5)
-	temp=0
 	for temp=0 to device_addr_overall-1
 		rc=StrCmp(ad$,addr_table$[temp])
 		if (rc==0) then			//if found increase msg count
@@ -76,7 +75,7 @@ function HndlrNtfyBuf()
 	if SendTestFlag==1 then
 		if (strlen(data_table$[PrevConnId])==0) then
 			ParalHandlWork=2
-			TimerStart(0,55,1)
+			TimerStart(0,60,1)
 		endif
 	endif
 endfunc 1
@@ -97,7 +96,6 @@ endfunc 1
 //==============================================================================
 function HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL nType AS INTEGER, BYVAL nLength AS INTEGER,BYVAL data$ AS STRING)
     if (hAttr == TXHandle) then	
-		temp=0
         for temp=0 to device_addr_overall-1
 			if (hConn==conn_table[temp]) then
 				print Sep;integer.d'SendToDev;Sep;temp;Sep;nLength;Sep;Data$;"\n" // Just print data that we got 
@@ -166,7 +164,12 @@ function HndlrAttrWrite(cHndl,aHndl,nSts)
 	// Now that everything is setup, Requst a switch to CODED PHY
 	//rc = BlePhySet(cHndl, BLE_PHY, BLE_PHY, 0)
 	rc = HndlrUartRx()
-endfunc 1
+	if (debsw==1) then
+		if nSts==0 then : print "Attr write OK\n"
+		else : print "Failed to write attr\n"
+		endif
+	endif
+endfunc 0
 
 // This shows the cuttent connection parameters
 //------------------------------------------------------------------------------
@@ -188,10 +191,10 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 			ShowConnParms(ConnectionID)	
 			temp$ = "\01\00"
 			rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, temp$)
+			if rc==0 then : WAITEVENT : endif
 			rc = BleSetCurConnParms(ConnectionID,minConnInterval,10000,5000000,0)
 		case BLE_EVBLEMSGID_DISCONNECT
 			ConnectionID = nCtx
-			temp=0
 			for temp=0 to device_addr_overall-1
 				if (ConnectionID==conn_table[temp]) then
 					print Sep;integer.d'DisConn;Sep;temp;Sep;"Disconnected!\n"
