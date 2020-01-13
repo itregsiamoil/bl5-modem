@@ -7,7 +7,7 @@ dim HelpTable$[NumCmnds]
 #define StopScanDev			2
 #define ConnToDev			3
 #define ScanSvcChrDesc		4
-#define ScanDesc			5
+#define ReadAtt				5
 #define SetupSendSvc		6
 #define SendToDev			7
 #define SendTestData		8
@@ -26,7 +26,7 @@ HelpTable$[ScanDev]=") 20sec scan BLE devices"
 HelpTable$[StopScanDev]=") stop scan BLE devices"
 HelpTable$[ConnToDev]="add"+Sep+") connect to selected device from table"
 HelpTable$[ScanSvcChrDesc]="conn"+Sep+") create list of services and characteristics from device"
-HelpTable$[ScanDesc]="conn"+Sep+"char"+Sep+") create list of descriptors from select characteristic"
+HelpTable$[ReadAtt]="conn"+Sep+"hndl"+Sep+") read data from handler"
 HelpTable$[SetupSendSvc]="conn"+Sep+"rx"+Sep+"tx"+Sep+") setup RX-TX characteristics to chat with selected device"
 HelpTable$[SendToDev]="conn"+Sep+"data"+Sep+") send data to selected device from table"
 HelpTable$[SendTestData]="conn"+Sep+"n"+Sep+") send test string (100*n bytes) to selected device from table"
@@ -45,6 +45,7 @@ HelpTable$[ResetMdm]=") reset modem"
 //==============================================================================
 function str_to_id(buf$,cleaning)
 	dim input_param$,SepPos,sepstr$
+	if (debsw==1) then : print "Buf:";buf$;"\n" : endif
 	sepstr$=Sep
 	SepPos=StrPos(buf$,sepstr$,0)
 	temp=0
@@ -57,6 +58,16 @@ function str_to_id(buf$,cleaning)
 		if (cleaning==1) then : StrShiftLeft(buf$,SepPos+1) : endif
 	endif
 endfunc temp
+
+// Find handler
+//==============================================================================
+function find_handler(buf$)
+	dim handler
+	temp$="H:"
+	handler=StrPos(buf$,temp$,7)
+	temp$=mid$(buf$,handler+2,3)
+	handler=strvaldec(temp$)
+endfunc handler
 
 // Check connection id in table
 //==============================================================================
@@ -144,25 +155,29 @@ function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
 		dim prop$
 		select cProp
 			case 2
-				prop$="r" : break
+				prop$="rd" : break
 			case 4
-				prop$="w-w/o-resp" : break
+				prop$="wr-wo-resp" : break
 			case 8
-				prop$="w" : break
+				prop$="wr" : break
 			case 10
-				prop$="r/w" : break
+				prop$="rd/wr" : break
 			case 16
-				prop$="n-w-cccd" : break
+				prop$="nt-w-cccd" : break
 			case 18
-				prop$="r/n-w-cccd" : break
+				prop$="rd/nt-w-cccd" : break
+			case 20
+				prop$="wr-wo-resp/nt-w-cccd" : break
+			case 22
+				prop$="rd/wr-wo-resp/nt-w-cccd" : break
 			case 24
-				prop$="w/n-w-cccd" : break
+				prop$="wr/nt-w-cccd" : break
 			case 26
-				prop$="r/w/n-w-cccd" : break
+				prop$="rd/wr/nt-w-cccd" : break
 			case 32
-				prop$="i-w-cccd" : break
+				prop$="in-w-cccd" : break
 			case 48
-				prop$="n/i-w-cccd" : break
+				prop$="nt/in-w-cccd" : break
 			case else
 				sprint #prop$,cProp
 		endselect
@@ -170,7 +185,6 @@ function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
 		StrShiftLeft(uuid$,4)
 		sprint #temp$,"CHR:";uuid$;"(";prop$;")";" H:";hVal
 		chr_table$(char_cnt)=temp$
-		chr_handlers_table(char_cnt)=hVal
 		char_cnt=char_cnt+1
 	endif
 	if hVal == 0 then
@@ -374,7 +388,8 @@ sub CommandParser(CmdNum)
 				rc=BleDiscCharFirst(conn_table(CurrConnId),0,0,65535)
 				if rc==0 then : WAITEVENT : endif
 				for temp=0 to char_cnt-1
-					rc = BleDiscDescFirst(conn_table(CurrConnId),0,chr_handlers_table(temp))
+					rc=find_handler(chr_table$(temp))
+					rc = BleDiscDescFirst(conn_table(CurrConnId),0,rc)
 					if rc==0 then : WAITEVENT : endif
 				next
 				if NotifySw==1 then
@@ -382,16 +397,11 @@ sub CommandParser(CmdNum)
 						temp$=mid$(desc_table$(temp),4,4)
 						rc=strvaldec(temp$)
 						if (rc==2902) then
-							dim handler
-							temp$="H:"
-							handler=StrPos(desc_table$(temp),temp$,7)
-							temp$=mid$(desc_table$(temp),handler+2,2)
-							handler=strvaldec(temp$)
-							//print "temp-";temp$;handler;"\n"
+							rc=find_handler(desc_table$(temp))
+							if (debsw==1) then : print "handler:";rc;" set to 1\n" : endif
 							temp$ = "\01\00"
-							rc = BLEGATTCWRITE(conn_table(CurrConnId),handler,temp$)
+							rc = BLEGATTCWRITE(conn_table(CurrConnId),rc,temp$)
 							if rc==0 then : WAITEVENT : endif
-							if (debsw==1) then : print "handler:";handler;" set to 1\n" : endif
 						endif
 					next
 					print Sep;integer.d'ScanSvcChrDesc;Sep;"All notify CCCD enabled\n"
@@ -401,26 +411,40 @@ sub CommandParser(CmdNum)
 					print svc_table$(temp);"\n"
 				next
 				for temp=0 to char_cnt-1
-					print chr_table$(temp);"\n"
+					print chr_table$(temp);
+					temp$="rd"
+					rc=StrPos(chr_table$(temp),temp$,7)
+					if rc>0 then 
+						rc=find_handler(chr_table$(temp))
+						rc = BleGattcRead(conn_table(CurrConnId),rc,0)
+						if rc==0 then : WAITEVENT
+						else : print " VAL:";"cant read from hndl(";integer.h'rc;")"
+						endif
+					endif
+					print "\n"
 				next
 				for temp=0 to desc_cnt-1
-					print desc_table$(temp);"\n"
+					print desc_table$(temp)
+					rc=find_handler(desc_table$(temp))
+					rc = BleGattcRead(conn_table(CurrConnId),rc,0)
+					if rc==0 then : WAITEVENT : endif
+					print "\n"
 				next
 				print Sep;integer.d'ScanSvcChrDesc;Sep;"All services/characteristics/descriptors finded\n"
 			endif
 			break
 		//-------------------------------------------------------------------------------
-		case ScanDesc
+		case ReadAtt
 			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
-			rc=CheckConnId(ScanDesc,CurrConnId)
+			rc=CheckConnId(ReadAtt,CurrConnId)
 			if rc>-1 then
 				rc=str_to_id(urx$,1)
 				if rc>-1 then
-					print Sep;integer.d'ScanDesc;Sep;"Start scanning descriptors:\n"
-					rc = BleDiscDescFirst(conn_table(CurrConnId),0,rc)
+					print Sep;integer.d'ReadAtt;Sep;"Read data:\n"
+					rc = BleGattcRead(conn_table(CurrConnId),rc,0)
 					if rc==0 then : WAITEVENT : endif
-					print Sep;integer.d'ScanDesc;Sep;"All descriptors finded\n"
+					print Sep;integer.d'ReadAtt;Sep;"Attr read\n"
 				endif
 			endif
 			break
@@ -457,11 +481,12 @@ sub CommandParser(CmdNum)
 					until rc==0
 					PrevConnId=CurrConnId
 				else
-					temp$=rtn_handlers_table$(CurrConnId)
-					RxHandle=str_to_id(temp$,1)
-					TXHandle=str_to_id(temp$,1)
-					TXCCCDHandle=str_to_id(temp$,1)
-					if (debsw==1) then : print "handlers:";RxHandle;"/";TXHandle;"/";TXCCCDHandle;"\n" : endif
+					if strlen(rtn_handlers_table$(CurrConnId))>1 then
+						temp$=rtn_handlers_table$(CurrConnId)
+						RxHandle=str_to_id(temp$,1)
+						TXHandle=str_to_id(temp$,1)
+					endif
+					if (debsw==1) then : print "Handlers:";RxHandle;"/";TXHandle;"\n" : endif
 					if (strlen(data_table$[PrevConnId])!=0) then
 						if (debsw==1) then : print Sep;"Old conn send\n" : endif
 						do : rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])

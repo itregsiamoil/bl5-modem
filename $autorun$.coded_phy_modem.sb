@@ -166,9 +166,25 @@ function HndlrAttrWrite(cHndl,aHndl,nSts)
 	//rc = BlePhySet(cHndl, BLE_PHY, BLE_PHY, 0)
 	rc = HndlrUartRx()
 	if (debsw==1) then
-		if nSts==0 then : print "Attr write OK\n"
-		else : print "Failed to write attr\n"
+		if nSts==0 then : print "Attr (";aHndl;") write OK\n"
+		else : print "Failed to write attr (";aHndl;")\n"
 		endif
+	endif
+endfunc 0
+
+// EVATTRREAD - Remote characteristic read
+//==============================================================================
+function HndlrAttrRead(cHndl,aHndl,nSts) as integer
+	dim Ofs,dat$
+	if nSts==0 then
+		if (debsw==1) then : print "Attr (";aHndl;") read OK\n" : endif
+		rc=BleGattcReadData(cHndl,aHndl,Ofs,dat$)
+		//print "H:";aHndl;" data:";dat$;"(";strhexize$(dat$);")\n"
+		if rc==0 then : print " VAL:";dat$;"(";strhexize$(dat$);")"
+		else : print " VAL:";"cant read data(";integer.h'rc;")"
+		endif
+	else
+		else : if (debsw==1) then : print "Failed to read attr (";aHndl;")\n" : endif
 	endif
 endfunc 0
 
@@ -256,6 +272,7 @@ OnEvent	EVBLE_ADV_REPORT    	call HandlerAdvRpt
 OnEvent	EVBLE_EXTADV_RPT    	call HandlerExtAdvRpt
 OnEvent	EVBLEMSG            	call HandlerBleMsg
 OnEvent EVATTRWRITE         	call HndlrAttrWrite
+OnEvent EVATTRREAD         		call HndlrAttrRead
 OnEvent EVBLE_CONN_TIMEOUT  	call HndlrConnTO
 OnEvent EVATTRNOTIFYEX      	call HndlrAttrNotifyEx      // Used if AT+CFG 213=1
 OnEvent EVNOTIFYBUF       		call HndlrNtfyBuf
