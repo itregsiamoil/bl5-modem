@@ -287,5 +287,5 @@ OnEvent	EVBLE_PHY_REQUEST  		call HandlerPhyReq
 // Timers
 OnEvent EVTMR0 					call ParallelHandler
 // Wait for a synchronous event
-WaitEvent
+WAITEVENT
 Reset(0)
