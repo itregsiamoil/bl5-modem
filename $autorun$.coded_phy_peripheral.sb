@@ -1,7 +1,7 @@
 // Definitions
 //******************************************************************************
 #define DeviceName                    	"SIAM MODEM"
-#define BLE_TX_POWER                    8		// Possible values are 8, 7, 6, 5, 4, 3, 2, 0, -4, -8, -12, -16, -20, -40dBm
+#define BLE_TX_POWER                    8	// Possible values are 8,6,4,2,0,-4,-8,-12,-16,-20 dBm
 #define BLE_1M_PHY                      1
 #define BLE_2M_PHY                      2
 #define BLE_CODED_PHY                   4
@@ -15,12 +15,12 @@
 #define U_SPEED							115200
 #define MinConnInterval					7500
 #define MaxConnInterval					20000
-#define EncryptConn						2 //2-encr, 1-open
-#define AddAppearanceToAdv				0 //0\1
+#define EncryptConn						2		//2-encr, 1-open
+#define AddAppearanceToAdv				0		//0/1
 #define BleAppearance					3200	//3200-весы, 520-тэг, 128-компьютер, 64-телефонб 384-удаленное кправление, ble_types.h in SDK
 #define DevNameLength					10
 #define AdvInterval						250
-// Definitions for attribute values to achieve higher bandwidth needed for CODED PHY
+#define nAttributeLength				20
 #define USE_STRINT_IN_EVENTS_KEY_ID		213		// CFG ID 213
 #define ENABLE_HIGH_BANDWIDTH_KEY_ID	214		// CFG ID 214
 #define USE_STRING_IN_EVENTS			1		// 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
@@ -40,17 +40,14 @@ dim Addr$:Addr$=""
 
 // Global Variable Declarations
 //******************************************************************************
-dim rc,temp,temp$                              	// Result code variable (used for checking if a function completed successfully or not)
-dim BaseUUID                        	// Base UUID for the VSP service which other UUIDs will be siblings of
-dim svcID                           	// VSP Service ID
-dim TXchar                          	// TX characteristic
-dim RXchar                          	// RX characteristic
-dim ConnectionID:ConnectionID = 0		// Holds the connection ID of the VSP client (if one is connected)
-dim UARTBlocked : UARTBlocked = 0   	// When set to 1 will not read data from the UART
-dim BufferState : BufferState = 0		// Status flag show availible to transmit data
-dim nAttributeMTU : nAttributeMTU = 23				//Default Maximum Transmission Unit on BL654
-dim nAttributeLength : nAttributeLength = 20		//Default Attribute Data Length on BL654
-dim nBleMaxPacketLength : nBleMaxPacketLength = 27	//Default maximum packet length on BL654
+dim rc,temp,temp$					// Result code variable (used for checking if a function completed successfully or not)
+dim BaseUUID						// Base UUID for the VSP service which other UUIDs will be siblings of
+dim svcID							// VSP Service ID
+dim TXchar							// TX characteristic
+dim RXchar							// RX characteristic
+dim ConnectionID:ConnectionID = 0	// Holds the connection ID of the VSP client (if one is connected)
+dim UARTBlocked:UARTBlocked = 0		// When set to 1 will not read data from the UART
+dim BufferState:BufferState = 0		// Status flag show availible to transmit data
 dim UartData$
 dim DevName$ : DevName$ = DeviceName
 
@@ -83,7 +80,7 @@ endfunc 0
 // Function that will create a custom VSP service with Tx/Rx characteristics
 //==============================================================================
 function ServiceAndAdvertInit()
-    dim mdCccd,mdVal,s$,RxUUID,TxUUID,svcID,mdrxDesc,rxDesc$,mdtxDesc,txDesc$//,UUIDStr$
+    dim mdCccd,mdVal,s$,svcID//,UUIDStr$
     s$ = "\00" //Default value for characteristics  
     //Create the VSP service
 	BaseUUID = BleHandleUuid16(BASEUUID)
@@ -92,37 +89,37 @@ function ServiceAndAdvertInit()
     rc = BleServiceNew(1, BaseUUID, svcID)
     //Create the RX characteristic
     mdVal = BleAttrMetadata(0,1,nAttributeLength,1,rc)
-    RxUUID = RXUUID
-    RxUUID = BleHandleUuidSibling(BaseUUID, RxUUID)
-    rc = BleCharNew(8, RxUUID, mdVal, 0, 0)
-	mdrxDesc=BleAttrMetadata(1,0,nAttributeLength,1,rc)
-	rxDesc$="RX data"
-	rc=BleCharDescUserDesc(rxDesc$,mdrxDesc)
+    temp = RXUUID
+    temp = BleHandleUuidSibling(BaseUUID, temp)
+    rc = BleCharNew(8, temp, mdVal, 0, 0)
+	temp=BleAttrMetadata(1,0,nAttributeLength,1,rc)
+	temp$="RX data"
+	rc=BleCharDescUserDesc(temp$,temp)
     rc = BleCharCommit(svcID, s$, RXchar)
     //Create the TX characteristic
     mdVal = BleAttrMetadata(0,0,nAttributeLength,1,rc)
     mdCccd = BleAttrMetadata(1,1,2,0,rc)
-    TxUUID = TXUUID
-    TxUUID = BleHandleUuidSibling(BaseUUID, TxUUID)
-    rc = BleCharNew(16, TxUUID, mdVal, mdCccd, 0)
-	mdtxDesc=BleAttrMetadata(1,0,nAttributeLength,1,rc)
-	txDesc$="TX data"
-	rc=BleCharDescUserDesc(txDesc$,mdtxDesc)
+    temp = TXUUID
+    temp = BleHandleUuidSibling(BaseUUID, temp)
+    rc = BleCharNew(16, temp, mdVal, mdCccd, 0)
+	temp=BleAttrMetadata(1,0,nAttributeLength,1,rc)
+	temp$="TX data"
+	rc=BleCharDescUserDesc(temp$,temp)
     rc = BleCharCommit(svcID, s$, TXchar)
     rc = BleServiceCommit(svcID)
 	
 	//Create advertising messages/sets
-	dim scRpt$,adRpt$,t1ext$,t2ext$,t3ext$//,ad1Rpt$
+	dim scRpt$,adRpt$//,ad1Rpt$
 	rc=BleGapSvcInit(DevName$,0,BleAppearance,MinConnInterval,MaxConnInterval,4000000,0) : AssertRC(rc,1)
 	rc=BleAdvRptInit(adRpt$, 6, AddAppearanceToAdv, DevNameLength) : AssertRC(rc,2)
 	rc=BleScanRptInit(scRpt$)
 	
-	//t1ext$=strdehexize$(LESupFutr$)
-	//rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType1,t1ext$) : AssertRC(rc,3)
-	t3ext$=strdehexize$(tag$)+Company$
-	rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,t3ext$) : AssertRC(rc,5)
-	t2ext$=strdehexize$(http$)+URI$
-	rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,t2ext$) : AssertRC(rc,4)
+	//temp$=strdehexize$(LESupFutr$)
+	//rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType1,temp$) : AssertRC(rc,3)
+	temp$=strdehexize$(tag$)+Company$
+	rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,temp$) : AssertRC(rc,5)
+	temp$=strdehexize$(http$)+URI$
+	rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,temp$) : AssertRC(rc,4)
 	
 	//rc=BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,6)
 	rc=BleAdvSetCreate(0,9,1,0,Addr$,"") : AssertRC(rc,7)

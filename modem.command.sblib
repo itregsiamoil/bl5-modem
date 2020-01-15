@@ -1,6 +1,6 @@
 // Command list
 //-------------------------------------------------------------------------------
-#define NumCmnds			19
+#define NumCmnds			14
 dim HelpTable$[NumCmnds]
 #define Help				0
 #define ScanDev				1
@@ -14,13 +14,8 @@ dim HelpTable$[NumCmnds]
 #define DisConn				9
 #define DebudSwitch			10
 #define ModemParams			11
-#define ActiveConn			12
-#define ChangePhy			13
-#define ChangePower			14
-#define SendAsHexOrAsc		15
-#define EnableAllNotify		16
-#define StopApp				17
-#define ResetMdm			18
+#define StopApp				12
+#define ResetMdm			13
 HelpTable$[Help]=") print all comands list"
 HelpTable$[ScanDev]=") 20sec scan BLE devices"
 HelpTable$[StopScanDev]=") stop scan BLE devices"
@@ -32,12 +27,7 @@ HelpTable$[SendToDev]="conn"+Sep+"data"+Sep+") send data to selected device from
 HelpTable$[SendTestData]="conn"+Sep+"n"+Sep+") send test string (100*n bytes) to selected device from table"
 HelpTable$[DisConn]="conn"+Sep+") disconnect from selected device from table"
 HelpTable$[DebudSwitch]="0/1/2"+Sep+") 0-off debug, 1-on debug, 2-measure time between msgs"
-HelpTable$[ModemParams]=") show modem parameters"
-HelpTable$[ActiveConn]=") show number of active connections"
-HelpTable$[ChangePhy]="1/2/4"+Sep+") change modem phy level BL4 1M(1), BL5 2M(2), BL5 CODED(4)"
-HelpTable$[ChangePower]="pwr"+Sep+") -8/-4/0/2/4/6/8 change radio transmit power"
-HelpTable$[SendAsHexOrAsc]="0/1"+Sep+") send data as ASCII(1) or HEX(0)"
-HelpTable$[EnableAllNotify]="0/1"+Sep+") enable(1) all CCCD notify flags at scan"
+HelpTable$[ModemParams]="cmnd"+Sep+") show(0)/change(1/2/3/4) modem parameters"
 HelpTable$[StopApp]=") exit app to AT mode, RESUME to continue run app"
 HelpTable$[ResetMdm]=") reset modem"
 
@@ -529,47 +519,154 @@ sub CommandParser(CmdNum)
 			endif
 			break
 		//-------------------------------------------------------------------------------
-		case DebudSwitch	
+		case ModemParams
 			rc=str_to_id(urx$,1)
 			if rc==-1 then : break : endif
-			print Sep;integer.d'DebudSwitch;Sep;"Debug "
-			select rc
-				case 0
-					debsw=rc : print "off\n" : break
-				case 1 
-					debsw=rc : print "on\n" : break
-				case 2
-					debsw=rc : print "msg timer on\n" : break
-				case else
-					print "available states 0/1/2\n"
-			endselect
-			break
-		//-------------------------------------------------------------------------------
-		case ModemParams
+			if rc==1 then
+				temp=str_to_id(urx$,1)
+				if temp==-1 then : break : endif
+				print " 1)PHY protocol:"
+				select temp
+					case 1
+						BLE_PHY=BLE_1M_PHY
+						SCAN_TYPE=BLE_NORMAL_SCANNING
+						HIGH_BANDWIDTH=0
+						print "BL4 1M mode\n" : break
+					case 2
+						BLE_PHY=BLE_2M_PHY
+						print "BL5 2M mode\n" : break
+					case 4
+						BLE_PHY=BLE_CODED_PHY
+						SCAN_TYPE=BLE_EXTENDED_SCANNING
+						HIGH_BANDWIDTH=1
+						print "BL5 CODED mode\n" : break
+					case else
+						print "available states BL4 1M(1),BL5 2M(2),BL5 CODED(4)\n"
+				endselect
+				temp = BleScanStop() 
+				temp = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HIGH_BANDWIDTH)
+				temp = BleScanConfig(4,BLE_PHY)
+				temp = BleScanConfig(5,SCAN_TYPE)
+				// Set connection PHYs to CODED PHY, enable extended connection
+				temp = BleConnectConfig(10,BLE_PHY)
+				temp = BleConnectConfig(11,SCAN_TYPE)
+				//temp = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
+			else
+				print " 1)PHY protocol:"
+				select BLE_PHY
+					case BLE_1M_PHY
+						print "BL4 1M\n" : break
+					case BLE_2M_PHY
+						print "BL5 2\n" : break
+					case BLE_CODED_PHY
+						print "BL5 CODED\n" : break
+					case else
+				endselect
+			endif
+			if rc==2 then
+				temp=str_to_id(urx$,1)
+				if temp==-1 then : break : endif
+				print " 2)Tx power:"
+				select temp
+					case -8
+						break
+					case -4
+						break
+					case 0
+						break
+					case 2
+						break
+					case 4
+						break
+					case 6
+						break
+					case 8
+						break
+					case else
+						temp=-10
+				endselect
+				if temp==-10 then : print "available states transmit power -8/-4/0/2/4/6/8\n"
+				else : temp = BleTxPowerSet(temp) : print SysInfo(2008);"dBm\n"
+				endif
+			else
+				print " 2)Tx power:"; SysInfo(2008);"dBm\n"
+			endif
+			if rc==3 then
+				temp=str_to_id(urx$,1)
+				if temp==-1 then : break : endif
+				print " 3)Data send as:"
+				select temp
+					case 0
+						print "HEX\n"
+						AscOrHexSw=temp : break
+					case 1
+						print "ASCII\n"
+						AscOrHexSw=temp : break
+					case else
+						print "available states ASCII(0)/HEX(1)\n"
+				endselect
+			else
+				print " 3)Data send as:"
+				if AscOrHexSw==0 then : print "HEX\n" : else : print "ASCII\n" : endif
+			endif
+			if rc==4 then
+				temp=str_to_id(urx$,1)
+				if temp==-1 then : break : endif
+				print " 4)CCCD flag setup at scan:"
+				select temp
+					case 0
+						print "OFF\n"
+						NotifySw=temp : break
+					case 1
+						print "ON\n"
+						NotifySw=temp : break
+					case else
+						print "available states disable(0)/enable(1)\n"
+				endselect
+			else
+				print " 4)CCCD flag setup at scan:"
+				if NotifySw==0 then : print "OFF\n" : else : print "ON\n" : endif
+			endif
+			if rc==5 then
+				temp=str_to_id(urx$,1)
+				if temp==-1 then : break : endif
+				print " 5)Debug:"
+				select temp
+					case 0
+						debsw=temp : print "off\n" : break
+					case 1 
+						debsw=temp : print "on\n" : break
+					case 2
+						debsw=temp : print "msg timer on\n" : break
+					case else
+						print "available states OFF(0)/ON(1)/msg timer(2)\n"
+				endselect
+			else
+				print " 5)Debug:"
+				select debsw
+					case 0
+						print "OFF\n" : break
+					case 1 
+						print "ON\n" : break
+					case 2
+						print "msg timer on\n" : break
+					case else
+						print "available states OFF(0)/ON(1)/msg timer(2)\n"
+				endselect
+			endif
 			dim fw,w,x,y,z
 			fw=SysInfo(3) : w=fw>>24 : fw=fw-(w<<24)
 			x=fw>>18 : fw=fw-(x<<18)
 			y=fw>>6 : fw=fw-(y<<6)
 			z=fw
-			print " FW version=";w;".";x;".";y;".";z;"\n"
-			print " Tx power="; SysInfo(2008);"\n"
-			print " PHY protocol="
-			select BLE_PHY
-				case BLE_1M_PHY
-					print "BL4 1M\n" : break
-				case BLE_2M_PHY
-					print "BL5 2\n" : break
-				case BLE_CODED_PHY
-					print "BL5 CODED\n" : break
-				case else
-			endselect
-			print " Flash DATA total="; SysInfo(601);" free="; SysInfo(602);"\n"
-			print " Flash FAT total="; SysInfo(611);" free="; SysInfo(612);"\n"
-			print " Flash NV total="; SysInfo(631);" free="; SysInfo(632);"\n"
-			print " Stack size="; SysInfo(2022);" in use="; SysInfo(2021);"\n"
-			print " Heap size="; SysInfo(2023);" in use="; SysInfo(2025);"\n"
-			print " Timer resolution="; SysInfo(2002);" tick="; SysInfo(2004);"\n"
-			print " Radio activity="
+			print " FW version:";w;".";x;".";y;".";z;"\n"
+			print " Free flash DATA:"; SysInfo(602); "/"; SysInfo(601)
+			print " FAT:"; SysInfo(612); "/"; SysInfo(611)
+			print " NV:"; SysInfo(632); "/"; SysInfo(631);"\n"
+			print " Stack size used:"; SysInfo(2021); "/"; SysInfo(2022);"\n"
+			print " Heap size used:"; SysInfo(2025); "/"; SysInfo(2023);"\n"
+			print " Timer resolution:"; SysInfo(2002);"uS, SysTick:"; SysInfo(2004);"uS\n"
+			print " Radio activity:"
 			select SysInfo(2016)
 				case 0
 					print "None\n" : break
@@ -591,126 +688,23 @@ sub CommandParser(CmdNum)
 			dim t as float
 			t=SysInfo(2024)
 			t=t/10.0
-			print " Temperature=";t;"\n"
+			print " Temperature:";t;"C\n"
 			dim v as float
 			v=SysInfo(2026)
 			v=v/1000.0
-			print " Supply voltage=";v;"\n"
-			print " FWStartTime="; SysInfo(2080);"ms\n"
+			print " Supply voltage:";v;"v\n"
+			print " FW StartTime:"; SysInfo(2080);"ms\n"
 			// dim pcon,centcon
 			// rc=NvCfgKeyGet(205,pcon)
 			// print " AvailNumPeriphConn=";pcon;"\n"
 			// rc=NvCfgKeyGet(206,centcon)
 			// print " AvailNumCentrConn=";centcon;"\n"
-			print " Data send as: "
-			if AscOrHexSw==0 then : print "HEX\n" : else : print "ASCII\n" : endif
-			print " CCCD flag setup at scan: "
-			if NotifySw==0 then : print "OFF\n" : else : print "ON\n" : endif
-			print " Debug:"
-			select debsw
-				case 0
-					print "OFF\n" : break
-				case 1 
-					print "ON\n" : break
-				case 2
-					print "msg timer on\n" : break
-				case else
-			endselect
-			break
-		//-------------------------------------------------------------------------------
-		case ActiveConn
-			print Sep;integer.d'ActiveConn;Sep;"Number of active connections: ";conn_cnt;"\n"
+			print " Number of active connections: ";conn_cnt;"\n"
 			for temp=0 to device_addr_overall-1
 				if conn_table[temp]>0 then
-					print Sep;integer.d'ActiveConn;Sep;temp;Sep; strhexize$(addr_table$[temp]);Sep;advpars_table$[temp];"\n"
+					print " ";temp;Sep; strhexize$(addr_table$[temp]);Sep;advpars_table$[temp];"\n"
 				endif
 			next
-		//-------------------------------------------------------------------------------
-		case ChangePhy
-			rc=str_to_id(urx$,1)
-			if rc==-1 then : break : endif
-			print Sep;"PHY "
-			select rc
-				case 1
-					BLE_PHY=BLE_1M_PHY
-					SCAN_TYPE=BLE_NORMAL_SCANNING
-					HIGH_BANDWIDTH=0
-					print "BL4 1M mode\n" : break
-				case 2
-					BLE_PHY=BLE_2M_PHY
-					print "BL5 2M mode\n" : break
-				case 4
-					BLE_PHY=BLE_CODED_PHY
-					SCAN_TYPE=BLE_EXTENDED_SCANNING
-					HIGH_BANDWIDTH=1
-					print "BL5 CODED mode\n" : break
-				case else
-					print "available states 1/2/4\n"
-			endselect
-			rc = BleScanStop() 
-			rc = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HIGH_BANDWIDTH)
-			rc = BleScanConfig(4,BLE_PHY)
-			rc = BleScanConfig(5,SCAN_TYPE)
-			// Set connection PHYs to CODED PHY, enable extended connection
-			rc = BleConnectConfig(10,BLE_PHY)
-			rc = BleConnectConfig(11,SCAN_TYPE)
-			//rc = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
-			break
-		//-------------------------------------------------------------------------------
-		case ChangePower
-			rc=str_to_id(urx$,1)
-			if rc==-1 then : break : endif
-			select rc
-				case -8
-					break
-				case -4
-					break
-				case 0
-					break
-				case 2
-					break
-				case 4
-					break
-				case 6
-					break
-				case 8
-					break
-				case else
-					rc=-10
-			endselect
-			if rc==-10 then : print Sep;integer.d'ChangePower;Sep;"Available states -8/-4/0/2/4/6/8\n"
-			else : rc = BleTxPowerSet(rc) : print Sep;integer.d'ChangePower;Sep;"Tx power="; SysInfo(2008);"\n"
-			endif
-			break
-		//-------------------------------------------------------------------------------
-		case SendAsHexOrAsc
-			rc=str_to_id(urx$,1)
-			if rc==-1 then : break : endif
-			select rc
-				case 0
-					print Sep;integer.d'SendAsHexOrAsc;Sep;"Send as HEX\n"
-					AscOrHexSw=rc : break
-				case 1
-					print Sep;integer.d'SendAsHexOrAsc;Sep;"Send as ASCII\n"
-					AscOrHexSw=rc : break
-				case else
-					print Sep;integer.d'SendAsHexOrAsc;Sep;"Available states 0/1\n"
-			endselect
-			break
-		//-------------------------------------------------------------------------------
-		case EnableAllNotify
-			rc=str_to_id(urx$,1)
-			if rc==-1 then : break : endif
-			select rc
-				case 0
-					print Sep;integer.d'EnableAllNotify;Sep;"CCCD not changes at scan\n"
-					NotifySw=rc : break
-				case 1
-					print Sep;integer.d'EnableAllNotify;Sep;"All CCCD enabled at scan\n"
-					NotifySw=rc : break
-				case else
-					print Sep;integer.d'EnableAllNotify;Sep;"Available states 0/1\n"
-			endselect
 			break
 		//-------------------------------------------------------------------------------
 		case StopApp
