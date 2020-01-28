@@ -1,6 +1,6 @@
 // Command list
 //-------------------------------------------------------------------------------
-#define NumCmnds			14
+#define NumCmnds			13
 dim HelpTable$[NumCmnds]
 #define Help				0
 #define ScanDev				1
@@ -12,22 +12,20 @@ dim HelpTable$[NumCmnds]
 #define SendToDev			7
 #define SendTestData		8
 #define DisConn				9
-#define DebudSwitch			10
-#define ModemParams			11
-#define StopApp				12
-#define ResetMdm			13
+#define ModemParams			10
+#define StopApp				11
+#define ResetMdm			12
 HelpTable$[Help]=") print all comands list"
 HelpTable$[ScanDev]=") 20sec scan BLE devices"
 HelpTable$[StopScanDev]=") stop scan BLE devices"
 HelpTable$[ConnToDev]="add"+Sep+") connect to selected device from table"
-HelpTable$[ScanSvcChrDesc]="conn"+Sep+") create list of services and characteristics from device"
+HelpTable$[ScanSvcChrDesc]="conn"+Sep+") create list of services/characteristics/descriptors from device"
 HelpTable$[ReadAtt]="conn"+Sep+"hndl"+Sep+") read data from handler"
 HelpTable$[SetupSendSvc]="conn"+Sep+"rx"+Sep+"tx"+Sep+") setup RX-TX characteristics to chat with selected device"
 HelpTable$[SendToDev]="conn"+Sep+"data"+Sep+") send data to selected device from table"
 HelpTable$[SendTestData]="conn"+Sep+"n"+Sep+") send test string (100*n bytes) to selected device from table"
 HelpTable$[DisConn]="conn"+Sep+") disconnect from selected device from table"
-HelpTable$[DebudSwitch]="0/1/2"+Sep+") 0-off debug, 1-on debug, 2-measure time between msgs"
-HelpTable$[ModemParams]="cmnd"+Sep+") show(0)/change(1/2/3/4) modem parameters"
+HelpTable$[ModemParams]="cmnd"+Sep+") show(0) or change(1/2/3/4/5) modem parameters"
 HelpTable$[StopApp]=") exit app to AT mode, RESUME to continue run app"
 HelpTable$[ResetMdm]=") reset modem"
 
@@ -633,9 +631,9 @@ sub CommandParser(CmdNum)
 				print " 5)Debug:"
 				select temp
 					case 0
-						debsw=temp : print "off\n" : break
+						debsw=temp : print "OFF\n" : break
 					case 1 
-						debsw=temp : print "on\n" : break
+						debsw=temp : print "ON\n" : break
 					case 2
 						debsw=temp : print "msg timer on\n" : break
 					case else
@@ -692,7 +690,7 @@ sub CommandParser(CmdNum)
 			dim v as float
 			v=SysInfo(2026)
 			v=v/1000.0
-			print " Supply voltage:";v;"v\n"
+			print " Supply voltage:";v;"V\n"
 			print " FW StartTime:"; SysInfo(2080);"ms\n"
 			// dim pcon,centcon
 			// rc=NvCfgKeyGet(205,pcon)

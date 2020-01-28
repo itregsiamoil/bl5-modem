@@ -85,8 +85,8 @@ endfunc 1
 function HndlrUartRx() 
 	rc = UartReadMatch(urx$, 0x0D) //Read data from UART
 	if (rc>0) then
-		urx$=left$(urx$,rc-1) //удаление из буфера 0x0D
-		rc=str_to_id(urx$,1) //получение номера команды
+		urx$=left$(urx$,rc-1)	//remove 0x0D from buf
+		rc=str_to_id(urx$,1)	//get command number
 		CommandParser(rc)
 		urx$=""
 	endif
@@ -262,7 +262,7 @@ sub Init()
 	print " modem."
 	temp$ = SYSINFO$(4)
 	print " My address "; strhexize$(temp$);". Transmitter power "; SysInfo(2008);".\n"
-	print Sep;"Write ";integer.d'Help;Sep;" for help, ";integer.d'ModemParams;Sep;" for hardware parameters\n"
+	print Sep;"Write ";integer.d'Help;Sep;" for help or ";integer.d'ModemParams;Sep;integer.d'0;Sep;" for hardware parameters\n"
 endsub
 Init()
 

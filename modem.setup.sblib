@@ -48,12 +48,12 @@ dim AscOrHexSw:AscOrHexSw=0
 dim NotifySw:NotifySw=1
 dim urx$ : urx$ = ""                	//UART read buffer
 dim BleBuf$ : BleBuf$ = ""          	//VSP read buffer
-dim msg_cnt[device_addr_overall]		//массив количества адвертайзинг сообщений под каждый адрес
-dim conn_table[device_addr_overall]		//массив идентификаторов соединений
-dim addr_table$[device_addr_overall]	//адреса найденных девайсов в hex
-dim data_table$[device_addr_overall]	//массив передаваемых данных под каждое соединение
-dim adv_table$[device_addr_overall]		//массив данных адвертайзинг сообщений под каждый адрес
-dim advpars_table$[device_addr_overall]	//массив разобранных данных адвертайзинг сообщений под каждый адрес
+dim msg_cnt[device_addr_overall]		//advertising messages count table
+dim conn_table[device_addr_overall]		//connection identifiers table
+dim addr_table$[device_addr_overall]	//phy device address table in hex
+dim data_table$[device_addr_overall]	//data table for each unique device
+dim adv_table$[device_addr_overall]		//advertising messages data table
+dim advpars_table$[device_addr_overall]	//parsed advertising messages data table
 dim rtn_handlers_table$[device_addr_overall]	//RX-TX-CCCD handlers for data transfer to device
 dim svc_table$[20]	//device services table
 dim chr_table$[50]	//device characteristics table
