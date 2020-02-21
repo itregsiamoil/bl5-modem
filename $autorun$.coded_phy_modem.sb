@@ -249,7 +249,7 @@ sub Init()
 	rc = NvCfgKeySet(206,6)
 	rc = NvCfgKeySet(207,2)
 	rc = BleGattcOpen(GATT_BUF, 0)
-	print Sep;"Hello! I'm "
+	print Sep
 	select BLE_PHY
 		case 1
 			print "BL4 1M"

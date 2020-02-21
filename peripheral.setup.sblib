@@ -28,6 +28,7 @@
 #define BASEUUID						0x6340	//"\56\9a\11\01\b8\7f\49\0c\92\cb\11\ba\5e\a5\16\7c" VSP base UUID
 #define RXUUID							0x6341
 #define TXUUID							0x6342
+#define Sep								"*"	//commands separator
 #define GAPDataType1					0x27	//bluetooth.com/specifications/assigned-numbers/generic-access-profile/
 dim LESupFutr$:LESupFutr$=				"2018"	//(v6,pB,4.6 bt core specification)
 #define GAPDataType2					0x24
@@ -37,6 +38,10 @@ dim tag$:tag$=							"44"
 dim Company$:Company$=					"ТНПВО СИАМ"
 dim Addr$:Addr$=""
 #set $cmpif,0x00 //debug 00-off, FF-on
+
+dim cmndbuf$
+dim CmndModeStr$:CmndModeStr$="letmeout"
+dim DataModeStr$:DataModeStr$="data"
 
 // Global Variable Declarations
 //******************************************************************************
@@ -48,6 +53,9 @@ dim RXchar							// RX characteristic
 dim ConnectionID:ConnectionID = 0	// Holds the connection ID of the VSP client (if one is connected)
 dim UARTBlocked:UARTBlocked = 0		// When set to 1 will not read data from the UART
 dim BufferState:BufferState = 0		// Status flag show availible to transmit data
+#define CmndMode	1
+#define DataMode	2
+dim Mode:Mode=CmndMode
 dim UartData$
 dim DevName$ : DevName$ = DeviceName
 
