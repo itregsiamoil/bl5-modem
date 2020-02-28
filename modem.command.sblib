@@ -197,16 +197,16 @@ function HandlerDescDisc(cHndl,cUuid,hndl) as integer
 		desc_table$(desc_cnt)=temp$
 		desc_cnt=desc_cnt+1
 	endif
-	IF hndl == 0 THEN
-		if (debsw==1) then : PRINT Sep;"Descriptor Scan complete\n" : endif
-		EXITFUNC 0
-	ELSE
+	if hndl == 0 then
+		if (debsw==1) then : print Sep;"Descriptor Scan complete\n" : endif
+		exitfunc 0
+	else
 		rc = BleDiscDescNext(cHndl)
-		IF rc != 0 THEN
-			if (debsw==1) then : PRINT Sep;"Descriptor scan abort\n" : endif
-			EXITFUNC 0
-		ENDIF
-	ENDIF
+		if rc != 0 then
+			if (debsw==1) then : print Sep;"Descriptor scan abort\n" : endif
+			exitfunc 0
+		endif
+	endif
 endfunc 1
 
 // Paraller work handler

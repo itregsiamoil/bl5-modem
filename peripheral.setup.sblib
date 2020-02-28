@@ -40,8 +40,24 @@ dim Addr$:Addr$=""
 #set $cmpif,0x00 //debug 00-off, FF-on
 
 dim cmndbuf$
+dim CmdNum
 dim CmndModeStr$:CmndModeStr$="letmeout"
 dim DataModeStr$:DataModeStr$="data"
+
+#define NumCmnds			6
+dim CmndsTable$[NumCmnds]
+#define ready				0
+#define nameset				1
+#define uartset				2
+#define physet				3
+#define drop				4
+#define resetfw				5
+CmndsTable$[ready]="ready"
+CmndsTable$[nameset]="nameset"
+CmndsTable$[uartset]="uartset"
+CmndsTable$[physet]="physet"
+CmndsTable$[drop]="drop"
+CmndsTable$[resetfw]="resetfw"
 
 // Global Variable Declarations
 //******************************************************************************
