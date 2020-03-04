@@ -3,8 +3,7 @@
 // Assert to check that a resultCode is 0 which means success
 //------------------------------------------------------------------------------
 sub AssertRC(rc, tag)
-    if (rc != 0) then
-        print "Assert Error ";integer.h'rc;" at tag ";tag;"\r\n"
+    if (rc != 0) then : print "Error ";integer.h'rc;" at tag ";tag;"\r\n"
     endif
 endsub
 
@@ -66,35 +65,42 @@ sub AdvertInit(flag)
 	rc=BleAdvRptInit(adRpt$, 6, AddAppearanceToAdv, DevNameLength) : AssertRC(rc,2)
 	rc=BleScanRptInit(scRpt$)
 	
-	//temp$=strdehexize$(LESupFutr$)
-	//rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType1,temp$) : AssertRC(rc,3)
-	temp$=strdehexize$(tag$)+Company$
-	rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,temp$) : AssertRC(rc,5)
-	temp$=strdehexize$(http$)+URI$
-	rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,temp$) : AssertRC(rc,4)
-	
-	//rc=BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,6)
-	select flag
-		case 1 //create
-			rc=BleAdvSetCreate(0,9,1,0,Addr$,"") : AssertRC(rc,7)
-			print "create\n"
-			flag=2
-		case 2 //update
-			rc=BleAdvSetNewData(0,adRpt$,scRpt$) : AssertRC(rc,8)
-			print "update\n"
-		case else
-	endselect
+	if BLE_PHY==BLE_CODED_PHY then
+		//temp$=strdehexize$(LESupFutr$)
+		//rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType1,temp$) : AssertRC(rc,3)
+		temp$=strdehexize$(tag$)+Company$
+		rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,temp$) : AssertRC(rc,4)
+		temp$=strdehexize$(http$)+URI$
+		rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,temp$) : AssertRC(rc,5)
+		select flag
+			case 1 //create
+				rc=BleAdvSetCreate(0,9,1,0,Addr$,"") : AssertRC(rc,6)
+				rc=BleAdvSetNewData(0,adRpt$,scRpt$) : AssertRC(rc,7)
+			case 2 //update
+				rc=BleAdvSetNewData(0,adRpt$,scRpt$) : AssertRC(rc,8)
+			case else
+		endselect
+	else : rc=BleAdvRptsCommit(adRpt$,scRpt$) : AssertRC(rc,9)
+	endif
+	//print "space-"; BleAdvRptGetSpace(adRpt$)
+	//print "space-"; BleExtAdvRptGetSpace(adRpt$)	
 endsub
 
 // Start LE Adverts
 //==============================================================================
 function BleStartAdverts()
-	if BLE_PHY==BLE_CODED_PHY then
-		rc=BleAdvSetStart(0,AdvInterval,0,0,0) : AssertRC(rc,9)
-	else
-		rc=BleAdvertStart(ADV_TYPE, Addr$, AdvInterval, 0, 0) : AssertRC(rc,10)
+	if BLE_PHY==BLE_CODED_PHY then : rc=BleAdvSetStart(0,AdvInterval,0,0,0)
+	else : rc=BleAdvertStart(ADV_TYPE, Addr$, AdvInterval, 0, 0)
 	endif
-endfunc 0
+endfunc rc
+
+// Stop LE Adverts
+//==============================================================================
+function BleStopAdverts()
+	if BLE_PHY==BLE_CODED_PHY then : rc=BleAdvSetStop(0)
+	else : rc=BleAdvertStop()
+	endif
+endfunc rc
 
 // Transmit mode parser
 //==============================================================================
@@ -103,16 +109,21 @@ function ModeCheck(cnt)
 	if (cnt<11) then //+2 symbols for cr/lf
 		if (cnt<7) then
 			if (StrPos(UartData$,DataModeStr$,0)!=-1) then 
-				Mode=DataMode
-				UartData$=""
-				print Sep;"DataModeOn\n"
-				exitfunc 1
+				if ConnectionID!=0 then
+					Mode=DataMode
+					UartData$=""
+					print "\r\nDATAMODE_SUCCS\r\n"
+					exitfunc 1
+				else 
+					if (debsw==1) then : print "\r\nNO_CONN\r\n" : endif
+					exitfunc 1
+				endif
 			endif
 		else
 			if (StrPos(UartData$,CmndModeStr$,0)!=-1) then 
 				Mode=CmndMode
 				UartData$=""
-				print Sep;"CmndModeOn\n"
+				print "\r\nCMNDMODE_SUCCS\r\n"
 				exitfunc 1
 			endif
 		endif
@@ -122,9 +133,9 @@ endfunc 0
 // Commands parser
 //==============================================================================
 sub CmndParsing()
-	rc=ExtractStrToken(UartData$,cmndbuf$)
+	rc=ExtractStrToken(UartData$,temp$)
 	for temp=0 to NumCmnds-1
-		if (StrCmp(cmndbuf$,CmndsTable$[temp])==0) then : CmdNum=temp : break
+		if (StrCmp(temp$,CmndsTable$[temp])==0) then : CmdNum=temp : break
 		else : CmdNum=-1
 		endif
 	next
@@ -132,27 +143,62 @@ sub CmndParsing()
 		case ready
 			print "\r\nSUCCS\r\n"
 		case nameset
-			rc=ExtractStrToken(UartData$,cmndbuf$)
-			DevName$=cmndbuf$
+			rc=ExtractStrToken(UartData$,temp$)
+			DevName$=temp$
+			rc=BleStopAdverts()
 			AdvertInit(2)
+			rc=BleStartAdverts()
+			if rc==0 then : print "\r\nNAME_SUCCS\r\n" : endif
 			break
 		case uartset
-			rc=ExtractStrToken(UartData$,cmndbuf$)
-			temp=strvaldec(cmndbuf$)
+			rc=ExtractStrToken(UartData$,temp$)
+			temp=strvaldec(temp$)
 			print "uartspeed=";temp;"\n"
 			UartFlush(1)
 			UartFlush(2)
 			UartClose()
 			rc = UartOpen(temp,U_BUF,U_BUF,"CN81H")
+			if rc==0 then : print "\r\nU_SUCCS\r\n" : endif
 			break
 		case physet
-			rc=ExtractStrToken(UartData$,cmndbuf$)
+			rc=ExtractIntToken(UartData$,temp)
+			dim HIGH_BANDWIDTH
+			select temp
+				case 1
+					BLE_PHY=BLE_1M_PHY
+					HIGH_BANDWIDTH=0
+				case 4
+					BLE_PHY=BLE_CODED_PHY
+					HIGH_BANDWIDTH=1
+				case else
+					print "\r\nUNKNW_PARAM\r\n"
+			endselect
+			temp = BleStopAdverts()
+			temp = NvCfgKeySet(ENABLE_HIGH_BANDWIDTH_KEY_ID, HIGH_BANDWIDTH)
+			temp = BleAdvertConfig(4,BLE_PHY)
+			temp = BleAdvertConfig(5,BLE_PHY)
+			AdvertInit(1)
+			//temp = BleConnectConfig(11,BLE_PHY)
+			rc=BleStartAdverts()
+			//temp = BlePhySet(ConnectionID, BLE_PHY, BLE_PHY, 0)
+			if temp==0 then : print "\r\nPHY_SUCCS\r\n" : endif
+			break
+		case power
+			rc=ExtractIntToken(UartData$,BLE_TX_POWER)
+			rc = BleTxPowerSet(BLE_TX_POWER)
+			if rc==0 then : print "\r\nPWR_SUCCS\r\n" : endif
+			break
 		case drop
-			rc=ExtractStrToken(UartData$,cmndbuf$)
+			rc = BleDisconnect(ConnectionID)
+			if rc==0 then : print "\r\nDISC_SUCCS\r\n" : endif
+			break
+		case debug
+			debsw=!debsw
+			print "\r\nDEB_SW";debsw;"\r\n"
 		case resetfw
 			reset(0)
 		case else
-			print "Unknw cmnd\n"
+			print "\r\nUNKNW_CMND\r\n"
 	endselect
 endsub
 
@@ -172,22 +218,22 @@ function HndlrBufferedUart()
 				if rc > 0 then
 					if (ModeCheck(rc)==0) then
 						if BufferState == 0 then
-							print "datamode:";UartData$;"\n"
+							if (debsw==1) then : print "datamode:";UartData$;"\n" : endif
 							temp$ = Left$(UartData$, nAttributeLength)
 							rc = BLECHARVALUENOTIFY(TXchar, temp$)
 							select rc
 								case 0
 									rc=strlen(temp$)
 									StrShiftLeft(UartData$,rc)
-									#cmpif 0xFF : print "-Succs send to char:";TXchar;"\n"
+									if (debsw==1) then : print "Succs send to char:";TXchar;"\n" : endif
 								case else
 									BufferState = 1
-									#cmpif 0xFF : print "-Ble send error! rc=";integer.h'rc;" msg-";temp$;"\n"
+									if (debsw==1) then : print "Ble send error! rc=";integer.h'rc;" msg-";temp$;"\n" : endif
 							endselect
 						endif
 					else : UartData$=""
 					endif
-					UartData$=""
+					//UartData$=""
 				endif
 			endif
 			break
@@ -196,7 +242,7 @@ function HndlrBufferedUart()
 			if rc > 0 then
 				if (ModeCheck(rc)==0) then
 					CmndParsing()
-					print "cmndmode:";UartData$;"\n"
+					if (debsw==1) then : print "cmndmode:";UartData$;"\n" : endif
 				else : UartData$="" //очистка если была команда
 				endif
 				UartData$=""
@@ -211,35 +257,35 @@ endfunc 1
 function HndlrNtfyBuf()
     if BufferState == 1 then
         BufferState = 0
-        rc=HndlrUartRx()
+        rc=HndlrBufferedUart()
     else
-        rc=HndlrUartRx()
+        rc=HndlrBufferedUart()
     endif
-	#cmpif 0xFF : print "Client: data rcv &  buf empty\n"
+	if (debsw==1) then : print "Client: data rcv &  buf empty\n" : endif
 endfunc 1
 
 // EVCHARVALUE - Handler for characteristic value written
 //==============================================================================
 function HndlrCharValue(nConnHandle, charHandle, offset, len, BYVAL Rd$ AS STRING)
     // Just print the data that we got from the char
-	#cmpif 0xFF : print " CharHandle-";charHandle;"\n"
+	//print " CharHandle-";charHandle;"\n"
     if charHandle == RXchar then
 		print Rd$
-		UartData$=Rd$
-		rc=HndlrUartRx()
+		//UartData$=Rd$
+		//rc=HndlrUartRx()
     endif
 endfunc 1
 
 // EVBLE_PHY_UPDATED - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyChngd(BYVAL hConn, BYVAL nStatus, BYVAL PhyTx, BYVAL PhyRx)
-    print "-PHY Changed-Status: ";integer.h' nStatus;" - PhyTx=";PhyTx;" PhyRx =";PhyRx;"\n"
+    if (debsw==1) then : print "PHY Changed-Status: ";integer.h' nStatus;" - PhyTx=";PhyTx;" PhyRx =";PhyRx;"\n" : endif
 endfunc 1
 
 // EVBLE_PHY_REQUEST - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
-    print "-PHY Request-PhyTx=";PhyTx;" PhyRx =";PhyRx;"\n"
+    if (debsw==1) then : print "PHY Request-PhyTx=";PhyTx;" PhyRx =";PhyRx;"\n" : endif
     // Accept the PHY requested by the remote device
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
@@ -249,14 +295,14 @@ endfunc 1
 sub ShowConnParms()
     dim intrvl,sprvto,slat
     rc = BleGetCurConnParms(ConnectionID,intrvl,sprvto,slat)
-    #cmpif 0xFF : print "-ConnParms-Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n"
+    if (debsw==1) then : print "ConnParms-Interval=";intrvl;",SuperTout=";sprvto;",SlaveLatency=";slat;"\n" : endif
 endsub
 
 // Handler for cccd value written
 //==============================================================================
 function HndlrCharCccd(charHandle, nVal)
     if charHandle == TXchar then
-		print "-BleNotify CCCD:";nVal;"\n"
+		if (debsw==1) then : print "BleNotify CCCD:";nVal;"\n" : endif
         if (nVal&0x0001) == 0x0001 then   //if notify enabled
             TimerCancel(0)     
         else
@@ -269,7 +315,7 @@ endfunc 1
 //==============================================================================
 function HndlrBleCccdTout()  //cccd was not enabled in time
     rc = BleDisconnect(ConnectionID)
-    print "-BLE Disconnect due to cccd not enabled\n"
+    if (debsw==1) then : print "BLE Disconnect due to cccd not enabled\n" : endif
 endfunc 1
 
 // Function to handle Ble event messages
@@ -277,15 +323,16 @@ endfunc 1
 function HndlrBleMsg(nMsgId, nCtx)
     select nMsgId
     case BLE_EVBLEMSGID_CONNECT
-        print "-Connected\n"
+        print "Connected\n"
         ConnectionID = nCtx
         ShowConnParms()
 		Mode=DataMode
 		TimerStart(0,5000,0)
     case BLE_EVBLEMSGID_DISCONNECT
-        print "-Disconnected\n"
+        if (debsw==1) then : print "Disconnected\n" : endif
         rc = BleStartAdverts()
 		ConnectionID = 0
+		Mode=CmndMode
     case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
         ShowConnParms()
     case else
@@ -302,11 +349,11 @@ sub Init()
 	rc = EnableHighBandwidth()
 	ServiceInit()
 	AdvertInit(1)
-	rc = BleAdvertConfig(4,BLE_PHY)
-	rc = BleAdvertConfig(5,BLE_PHY)
-	rc = BleStartAdverts()
+	rc = BleAdvertConfig(4,BLE_PHY) : AssertRC(rc,22)
+	rc = BleAdvertConfig(5,BLE_PHY) : AssertRC(rc,23)
+	rc = BleStartAdverts() : AssertRC(rc,24)
 	temp$ = SYSINFO$(4)
-	print "Device. My address is "; strhexize$(temp$);"\n"
+	if (debsw==1) then : print "Device. My address is "; strhexize$(temp$);"\n" : endif
 endsub
 Init()
 

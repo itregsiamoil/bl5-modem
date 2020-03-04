@@ -259,9 +259,9 @@ sub Init()
 			print "BL5 CODED"
 		case else
 	endselect
-	print " modem."
+	print " modem"
 	temp$ = SYSINFO$(4)
-	print " My address "; strhexize$(temp$);". Transmitter power "; SysInfo(2008);".\n"
+	print " / Address "; strhexize$(temp$);" / Power "; SysInfo(2008);"db.\n"
 	print Sep;"Write ";integer.d'Help;Sep;" for help or ";integer.d'ModemParams;Sep;integer.d'0;Sep;" for hardware parameters\n"
 endsub
 Init()

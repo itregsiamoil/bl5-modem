@@ -22,8 +22,8 @@ dim HIGH_BANDWIDTH:HIGH_BANDWIDTH=			1	// 0: medium bandwidth 1: high bandwidth
 dim SCAN_TYPE:SCAN_TYPE=					BLE_NORMAL_SCANNING
 dim BLE_PHY:BLE_PHY=						BLE_1M_PHY
 dim RXHandle:RxHandle=						16	//RX handle (MI-18,MO-16,RX-21,TX-23,MOCCCD-24)
-dim TXHandle:TXHandle=						18	//TX handle //Hardcoded GATT attributes of remote BL654
-dim TXCCCDHandle:TXCCCDHandle=				19	//TX CCCD handle
+dim TXHandle:TXHandle=						19	//TX handle //Hardcoded GATT attributes of remote BL654
+dim TXCCCDHandle:TXCCCDHandle=				20	//TX CCCD handle
 #define Sep									"*"	//commands separator
 #define ENABLE_HIGH_BANDWIDTH_KEY_ID      	214	// CFG ID 214
 #define USE_STRINT_IN_EVENTS_KEY_ID         213	// CFG ID 213

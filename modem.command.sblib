@@ -610,7 +610,7 @@ sub CommandParser(CmdNum)
 			if rc==4 then
 				temp=str_to_id(urx$,1)
 				if temp==-1 then : break : endif
-				print " 4)CCCD flag setup at scan:"
+				print " 4)Set flag CCCD on connection:"
 				select temp
 					case 0
 						print "OFF\n"
@@ -622,7 +622,7 @@ sub CommandParser(CmdNum)
 						print "available states disable(0)/enable(1)\n"
 				endselect
 			else
-				print " 4)CCCD flag setup at scan:"
+				print " 4)Set flag CCCD on connection:"
 				if NotifySw==0 then : print "OFF\n" : else : print "ON\n" : endif
 			endif
 			if rc==5 then
