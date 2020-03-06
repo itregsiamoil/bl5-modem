@@ -68,7 +68,7 @@ CmndsTable$[resetfw]="resetfw"
 
 // Global Variable Declarations
 //******************************************************************************
-dim rc,temp,temp$					// Result code variable (used for checking if a function completed successfully or not)
+dim rc,temp,temp$,send$
 dim BaseUUID						// Base UUID for the VSP service which other UUIDs will be siblings of
 dim svcID							// VSP Service ID
 dim TXchar							// TX characteristic
