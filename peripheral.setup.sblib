@@ -68,7 +68,7 @@ CmndsTable$[resetfw]="resetfw"
 
 // Global Variable Declarations
 //******************************************************************************
-dim rc,temp,temp$,send$
+dim rc,temp,temp$
 dim BaseUUID						// Base UUID for the VSP service which other UUIDs will be siblings of
 dim svcID							// VSP Service ID
 dim TXchar							// TX characteristic
@@ -88,10 +88,6 @@ dim DevName$ : DevName$ = DeviceName
 #define BLE_EVBLEMSGID_IMMEDIATE_ALERT_SERVICE_ALERT   	 2 // nCtx = alert level
 #define BLE_EVBLEMSGID_LINKLOSS_SERVICE_ALERT          	 3 // nCtx = alert level
 #define BLE_EVBLEMSGID_SERVICE_ERROR                   	 4 // nCtx = resultcode
-#define BLE_EVBLEMSGID_HTS_INDICATION_STATE            	 5 // nCtx = new indication state 0=off, 1=on
-#define BLE_EVBLEMSGID_HTS_INDICATION_CNF              	 6 // nCtx = not used
-#define BLE_EVBLEMSGID_BPS_INDICATION_STATE            	 7 // nCtx = new indication state 0=off, 1=on
-#define BLE_EVBLEMSGID_BPS_INDICATION_CNF              	 8 // nCtx = not used
 #define BLE_EVBLEMSGID_DISPLAY_PASSKEY                 	 9 // nCtx = passcode to display
 #define BLE_EVBLEMSGID_NEW_BOND                        	10 // nCtx = connection handle
 #define BLE_EVBLEMSGID_AUTH_KEY_REQUEST                	11 // nCtx = 1 for passkey, 2 for 16 byte OOB data
