@@ -42,7 +42,7 @@ dim Company$:Company$=					"ТНПВО СИАМ"
 dim Addr$:Addr$=""
 #set $cmpif,0x00 //debug 00-off, FF-on
 
-dim CmdNum
+dim CmdNum, printflag, offstate
 dim debsw:debsw=0
 dim CmndModeStr$:CmndModeStr$="letmeout"
 dim DataModeStr$:DataModeStr$="data"

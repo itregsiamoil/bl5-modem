@@ -11,9 +11,10 @@ endsub
 // Print string to uart
 //------------------------------------------------------------------------------
 sub PrintAny(str$)
-	if (debsw==1) then
+	if (debsw==1)||(printflag==1) then
 		print str$
 		if ConnectionID!=0 then : rc = BLECHARVALUENOTIFY(TXchar, str$) : endif
+		printflag=0
 	endif
 endsub
 
@@ -97,19 +98,22 @@ endfunc rc
 // Send data throught BLE
 //==============================================================================
 function SendToBle()
-	temp$ = Left$(UartData$, nAttributeLength)
-	rc = BLECHARVALUENOTIFY(TXchar, temp$)
+	dim blesend$
+	blesend$ = Left$(UartData$, nAttributeLength)
+	rc = BLECHARVALUENOTIFY(TXchar, blesend$)
 	select rc
 		case 0
-			temp=strlen(temp$)
+			temp=strlen(blesend$)
 			StrShiftLeft(UartData$,temp)
 			if (debsw==1) then : print "SUCCS_SEND\n" : endif
 		// case 24643
 			// if (debsw==1) then : print "Data to send is empty\n" : endif
 			// exitfunc 0
+			break
 		case else
 			BufferState = 1
 			if (debsw==1) then : print "SEND_ERROR_";integer.h'rc;" msg-";temp$;"\n" : endif
+			break
 	endselect
 endfunc 1
 
@@ -154,9 +158,12 @@ sub UartSw(sw)
 				UartFlush(2)
 				UartData$=""
 				UartClose()
+				break
 			//endif
 		case 1
+			UartData$=""
 			if UartInfo(0)==0 then : rc = UartOpen(U_SPEED,U_BUF,U_BUF,"CN81H") : endif
+			break
 		case else
 	endselect
 endsub
@@ -173,7 +180,15 @@ sub CmndParsing(data$)
 	next
 	select CmdNum
 		case ready
-			print "\r\nSUCCS\r\n"
+			printflag=1
+			sendcmnd$="\r\nSUCCS"
+			if BLE_PHY==BLE_CODED_PHY then : sendcmnd$=sendcmnd$+"5"
+			else : sendcmnd$=sendcmnd$+"4"
+			endif
+			if ConnectionID!=0 then : sendcmnd$=sendcmnd$+"1"
+			else : sendcmnd$=sendcmnd$+"0"
+			endif
+			sendcmnd$=sendcmnd$+"\r\n"
 			break
 		case nameset
 			rc=ExtractStrToken(data$,temp$)
@@ -236,7 +251,7 @@ endsub
 // EVUARTRX - Function handler for UART data receive
 //==============================================================================
 function HndlrUartRx()
-	TimerStart(1,5,0)
+	TimerStart(1,2,0)
 endfunc 1
 
 // Buffered uart handler
@@ -245,27 +260,18 @@ function HndlrBufferedUart()
 	TimerStart(0,180000,0)
     select Mode
 		case DataMode
-			rc = UARTREADN(UartData$,U_BUF)		
-			if ConnectionID!=0 then
-				if rc > 0 then
-					if (ModeCheck(UartData$,rc)==0) then
-						if BufferState == 0 then
-							//if (debsw==1) then : print "datamode:";UartData$;"\n" : endif
-							rc=SendToBle()
-						endif
-					else : UartData$=""
-					endif
+			rc = UARTREADN(UartData$,U_BUF)
+			if rc > 0 then
+				if (ModeCheck(UartData$,rc)==0) then
+					if BufferState == 0 then : rc=SendToBle() : endif
+				else : UartData$=""
 				endif
 			endif
 			break
 		case CmndMode
-			rc = UartReadMatch(UartData$, 0x0D)
+			rc = UartReadMatch(UartData$,0x0D)
 			if rc > 0 then
-				if (ModeCheck(UartData$,rc)==0) then
-					CmndParsing(UartData$)
-					//if (debsw==1) then : print "cmndmode:";UartData$;"\n" : endif
-				else : UartData$="" //очистка если была смена режима
-				endif
+				if (ModeCheck(UartData$,rc)==0) then : CmndParsing(UartData$) : endif
 				UartData$=""
 			endif
 			break
@@ -312,7 +318,7 @@ function HndlrCharCccd(charHandle, nVal)
 		if (debsw==1) then : print "CCCD_FLAG_";nVal;"\n" : endif
         if (nVal&0x0001) == 0x0001 then   //if notify enabled
             TimerStart(0,180000,0)
-			print "CONNECTED\n"
+			print "CONNECTED"
         else
             TimerStart(0,5000,0)
         endif
@@ -322,16 +328,18 @@ endfunc 1
 // Device off state machine
 //==============================================================================
 function DevOff()
-	select temp
+	select offstate
 		case 1 //close connection
 			if ConnectionID!=0 then : rc = BleDisconnect(ConnectionID) : endif
-			temp=2
+			offstate=2
 			TimerStart(0,5000,0)
+			break
 		case 2 //turn off device
 			temp$="0D0A01020088000002004378050003e0"
 			print strdehexize$(temp$)
-			temp=3
+			offstate=3
 			TimerStart(0,5000,0)
+			break
 		case 3 //close uart for lp mode 3uA
 			UartSw(0)
 		case else
@@ -360,15 +368,17 @@ function HndlrBleMsg(nMsgId, nCtx)
 		UartSw(1)
         ConnectionID = nCtx
         if (debsw==1) then : ShowConnParms() : endif
-		TimerStart(0,5000,0)
+		TimerStart(0,10000,0)
 		Mode=DataMode
+		break
     case BLE_EVBLEMSGID_DISCONNECT
         if (debsw==1) then : print "DISCONNECTED\n" : endif
         rc = BleStartAdverts()
 		ConnectionID = 0
 		Mode=CmndMode
-		temp=1
+		offstate=1
 		TimerStart(0,5000,0)
+		break
     case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
         if (debsw==1) then : ShowConnParms() : endif
     case else
