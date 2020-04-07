@@ -97,29 +97,56 @@ endfunc rc
 
 // Send data throught BLE
 //==============================================================================
-function SendToBle()
-	dim blesend$
-	blesend$ = Left$(UartData$, nAttributeLength)
-	rc = BLECHARVALUENOTIFY(TXchar, blesend$)
-	select rc
-		case 0
-			temp=strlen(blesend$)
-			StrShiftLeft(UartData$,temp)
-			if (debsw==1) then : print "SUCCS_SEND\n" : endif
-		// case 24643
-			// if (debsw==1) then : print "Data to send is empty\n" : endif
-			// exitfunc 0
-			break
+function SendToBle(from)
+	dim send
+	select from
+		case 1
+			if strlen(BleData$)==0 then
+				BleData$=UartData$
+				UartData$=""
+				send=1
+			else : send=0
+			endif
+		case 2
+			if strlen(BleData$)!=0 then : send=1
+			else : send=0
+			endif
+		case 3
+			if strlen(BleData$)!=0 then : send=1
+			else 
+				if strlen(UartData$)!=0 then
+					BleData$=UartData$
+					UartData$=""
+					from=4
+					send=1
+				else : send=0
+				endif
+			endif
 		case else
-			BufferState = 1
-			if (debsw==1) then : print "SEND_ERROR_";integer.h'rc;" msg-";temp$;"\n" : endif
-			break
 	endselect
+	if send==1 then
+		temp$=Left$(BleData$, nAttributeLength)
+		rc = BLECHARVALUENOTIFY(TXchar, temp$)
+		select rc
+			case 0
+				temp=strlen(temp$)
+				StrShiftLeft(BleData$,temp)
+				if (debsw==1) then : print "SUCCS_SEND_N";from;"\n" : endif
+			// case 24643
+				// if (debsw==1) then : print "Data to send is empty\n" : endif
+				// exitfunc 0
+				break
+			case else
+				BufferState = 1
+				if (debsw==1) then : print "SEND_ERROR_";integer.h'rc;" msg-";temp$;"\n" : endif
+				break
+		endselect
+	endif
 endfunc 1
 
 // Transmit mode parser
 //==============================================================================
-function ModeCheck(buf$,cnt)
+function ModeCheck(byval buf$,cnt)
 	//print "check:";buf$;cnt;"\n"
 	dim sendmode$
 	if (cnt<11) then //+2 symbols for cr/lf
@@ -170,7 +197,7 @@ endsub
 
 // Commands parser
 //==============================================================================
-sub CmndParsing(data$)
+sub CmndParsing(byval data$)
 	dim sendcmnd$
 	rc=ExtractStrToken(data$,temp$)
 	for temp=0 to NumCmnds-1
@@ -178,17 +205,42 @@ sub CmndParsing(data$)
 		else : CmdNum=-1
 		endif
 	next
+	select checkstate
+		case 0
+			temp=StrPos(UartData$,DeviceTypeCmnd$,0)
+			//print UartData$;"--";temp;"\n"
+			if (temp!=-1) then
+				StrShiftLeft(UartData$,temp+24)
+				//print UartData$;"\n"
+				if (StrPos(UartData$,ddim$,0)!=-1) then : DevName$="DDIM_" : checkstate=1 : endif
+				if (StrPos(UartData$,du$,0)!=-1) then : DevName$="DU_" : checkstate=1 : endif
+				if (StrPos(UartData$,siddos3m$,0)!=-1) then : DevName$="SIDDOSA3M_" : checkstate=1 : endif
+			endif
+		case 1
+			temp=StrPos(UartData$,DeviceIdCmnd$,0)
+			//print UartData$;"--";DeviceIdCmnd$;"--";temp;"\n"
+			if (temp!=-1) then
+				StrShiftLeft(UartData$,temp+24)
+				temp$=Left$(UartData$,2)
+				sprint #data$,DevName$;strhex2bin(temp$,0)
+				//print data$;"\n"
+				//DevName$=DevName$+strhex2bin(temp$,0)
+				checkstate=2
+				CmdNum=1
+			endif
+		case else
+	endselect
 	select CmdNum
 		case ready
 			printflag=1
-			sendcmnd$="\r\nSUCCS"
-			if BLE_PHY==BLE_CODED_PHY then : sendcmnd$=sendcmnd$+"5"
-			else : sendcmnd$=sendcmnd$+"4"
-			endif
-			if ConnectionID!=0 then : sendcmnd$=sendcmnd$+"1"
-			else : sendcmnd$=sendcmnd$+"0"
-			endif
-			sendcmnd$=sendcmnd$+"\r\n"
+			sendcmnd$="\r\nSUCCS\r\n"
+			// if BLE_PHY==BLE_CODED_PHY then : sendcmnd$=sendcmnd$+"5"
+			// else : sendcmnd$=sendcmnd$+"4"
+			// endif
+			// if ConnectionID!=0 then : sendcmnd$=sendcmnd$+"1"
+			// else : sendcmnd$=sendcmnd$+"0"
+			// endif
+			// sendcmnd$=sendcmnd$+"\r\n"
 			break
 		case nameset
 			rc=ExtractStrToken(data$,temp$)
@@ -258,25 +310,22 @@ endfunc 1
 //==============================================================================
 function HndlrBufferedUart()
 	TimerStart(0,180000,0)
-    select Mode
-		case DataMode
-			rc = UARTREADN(UartData$,U_BUF)
-			if rc > 0 then
-				if (ModeCheck(UartData$,rc)==0) then
-					if BufferState == 0 then : rc=SendToBle() : endif
-				else : UartData$=""
-				endif
-			endif
-			break
-		case CmndMode
-			rc = UartReadMatch(UartData$,0x0D)
-			if rc > 0 then
-				if (ModeCheck(UartData$,rc)==0) then : CmndParsing(UartData$) : endif
-				UartData$=""
-			endif
-			break
-		case else
-	endselect
+	rc = UARTREADN(UartData$,U_BUF)
+	if rc > 0 then
+		if (ModeCheck(UartData$,rc)!=0) then : UartData$="" : exitfunc 1
+		else
+			select Mode
+				case DataMode
+					if BufferState == 0 then : rc=SendToBle(1) : endif
+					break
+				case CmndMode
+					CmndParsing(UartData$)
+					UartData$=""
+					break
+				case else
+			endselect
+		endif
+	endif
 endfunc 1
 
 // EVNOTIFYBUF - Notification buffer was emptied
@@ -284,13 +333,10 @@ endfunc 1
 function HndlrNtfyBuf()
     if BufferState == 1 then
         BufferState = 0
-        rc=SendToBle()
+        rc=SendToBle(2)
     else
-		if strlen(UartData$)>0 then : rc=SendToBle() : endif
+		rc=SendToBle(3)
     endif
-	temp$="BLE_TX_BUF_EMPTY\n"
-	PrintAny(temp$)
-	//if (debsw==1) then : print "Client: data rcv & buf empty\n" : endif
 endfunc 1
 
 // EVCHARVALUE - Handler for characteristic value written
@@ -342,6 +388,23 @@ function DevOff()
 			break
 		case 3 //close uart for lp mode 3uA
 			UartSw(0)
+		case else
+	endselect
+endfunc 1
+
+// Device check state machine
+//==============================================================================
+function DevCheck()
+	select checkstate
+		case 0
+			print strdehexize$(DeviceTypeCmnd$) //device type
+			//reset
+			TimerStart(2,1050,0)
+			break
+		case 1
+			print strdehexize$(DeviceIdCmnd$) //device id
+			TimerStart(2,1050,0)
+			break
 		case else
 	endselect
 endfunc 1
@@ -417,6 +480,7 @@ sub Init()
 	//temp$ = SYSINFO$(4)
 	//print "Device / Address "; strhexize$(temp$);"\n" : endif
 	TimerStart(0,180000,0)
+	TimerStart(2,450,0)
 endsub
 Init()
 
@@ -432,6 +496,7 @@ OnEvent EVBLE_PHY_UPDATED	call HandlerPhyChngd
 // Timers
 OnEvent EVTMR0 				call DevOff
 OnEvent EVTMR1 				call HndlrBufferedUart
+OnEvent EVTMR2				call DevCheck
 // Wait for a synchronous event
 WAITEVENT
 reset(0)

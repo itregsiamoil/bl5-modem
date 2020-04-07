@@ -42,10 +42,16 @@ dim Company$:Company$=					"ТНПВО СИАМ"
 dim Addr$:Addr$=""
 #set $cmpif,0x00 //debug 00-off, FF-on
 
-dim CmdNum, printflag, offstate
+dim CmdNum, printflag, offstate, checkstate
 dim debsw:debsw=0
 dim CmndModeStr$:CmndModeStr$="letmeout"
 dim DataModeStr$:DataModeStr$="data"
+dim DeviceTypeCmnd$:DeviceTypeCmnd$="0d0a01010000000002009067"
+dim DeviceIdCmnd$:DeviceIdCmnd$="0d0a01010a0000000400936d"
+dim ddim$:ddim$="0114"
+dim siddos3m$:siddos3m$="0115"
+dim du$:du$="0113"
+dim dua$:dua$="0117"
 
 #define NumCmnds			8
 dim CmndsTable$[NumCmnds]
@@ -79,7 +85,7 @@ dim BufferState:BufferState = 0		// Status flag show availible to transmit data
 #define CmndMode	1
 #define DataMode	2
 dim Mode:Mode=CmndMode
-dim UartData$
+dim UartData$, BleData$
 dim DevName$ : DevName$ = DeviceName
 
 //BLE EVENT MSG IDs
