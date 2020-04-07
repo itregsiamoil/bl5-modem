@@ -46,8 +46,8 @@ dim CmdNum, printflag, offstate, checkstate
 dim debsw:debsw=0
 dim CmndModeStr$:CmndModeStr$="letmeout"
 dim DataModeStr$:DataModeStr$="data"
-dim DeviceTypeCmnd$:DeviceTypeCmnd$="0d0a01010000000002009067"
-dim DeviceIdCmnd$:DeviceIdCmnd$="0d0a01010a0000000400936d"
+dim DeviceTypeCmnd$:DeviceTypeCmnd$="0D0A01010000000002009067"
+dim DeviceIdCmnd$:DeviceIdCmnd$="0D0A01010A0000000400936D"
 dim ddim$:ddim$="0114"
 dim siddos3m$:siddos3m$="0115"
 dim du$:du$="0113"
@@ -80,8 +80,6 @@ dim svcID							// VSP Service ID
 dim TXchar							// TX characteristic
 dim RXchar							// RX characteristic
 dim ConnectionID:ConnectionID = 0	// Holds the connection ID of the VSP client (if one is connected)
-dim UARTBlocked:UARTBlocked = 0		// When set to 1 will not read data from the UART
-dim BufferState:BufferState = 0		// Status flag show availible to transmit data
 #define CmndMode	1
 #define DataMode	2
 dim Mode:Mode=CmndMode

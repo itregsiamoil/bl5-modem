@@ -8,16 +8,6 @@ sub AssertRC(rc, tag)
     endif
 endsub
 
-// Print string to uart
-//------------------------------------------------------------------------------
-sub PrintAny(str$)
-	if (debsw==1)||(printflag==1) then
-		print str$
-		if ConnectionID!=0 then : rc = BLECHARVALUENOTIFY(TXchar, str$) : endif
-		printflag=0
-	endif
-endsub
-
 // Function that will create a custom VSP service with Tx/Rx characteristics
 //==============================================================================
 sub ServiceInit()
@@ -97,27 +87,23 @@ endfunc rc
 
 // Send data throught BLE
 //==============================================================================
-function SendToBle(from)
-	dim send
+function SendToBle(from,bdata$)
+	dim send,blesend$
 	select from
 		case 1
 			if strlen(BleData$)==0 then
-				BleData$=UartData$
-				UartData$=""
+				BleData$=bdata$
+				bdata$=""
 				send=1
 			else : send=0
 			endif
 		case 2
 			if strlen(BleData$)!=0 then : send=1
-			else : send=0
-			endif
-		case 3
-			if strlen(BleData$)!=0 then : send=1
 			else 
-				if strlen(UartData$)!=0 then
-					BleData$=UartData$
-					UartData$=""
-					from=4
+				if strlen(bdata$)!=0 then
+					BleData$=bdata$
+					bdata$=""
+					from=3
 					send=1
 				else : send=0
 				endif
@@ -125,11 +111,11 @@ function SendToBle(from)
 		case else
 	endselect
 	if send==1 then
-		temp$=Left$(BleData$, nAttributeLength)
-		rc = BLECHARVALUENOTIFY(TXchar, temp$)
+		blesend$=Left$(BleData$, nAttributeLength)
+		rc = BLECHARVALUENOTIFY(TXchar, blesend$)
 		select rc
 			case 0
-				temp=strlen(temp$)
+				temp=strlen(blesend$)
 				StrShiftLeft(BleData$,temp)
 				if (debsw==1) then : print "SUCCS_SEND_N";from;"\n" : endif
 			// case 24643
@@ -137,16 +123,25 @@ function SendToBle(from)
 				// exitfunc 0
 				break
 			case else
-				BufferState = 1
-				if (debsw==1) then : print "SEND_ERROR_";integer.h'rc;" msg-";temp$;"\n" : endif
+				if (debsw==1) then : print "SEND_ERROR_";integer.h'rc;" msg-";blesend$;"\n" : endif
 				break
 		endselect
 	endif
 endfunc 1
 
+// Print string to uart
+//------------------------------------------------------------------------------
+sub PrintAny(str$)
+	if (debsw==1)||(printflag==1) then
+		print str$
+		if ConnectionID!=0 then : rc=SendToBle(1,str$) : endif
+		printflag=0
+	endif
+endsub
+
 // Transmit mode parser
 //==============================================================================
-function ModeCheck(byval buf$,cnt)
+function ModeCheck(buf$,cnt)
 	//print "check:";buf$;cnt;"\n"
 	dim sendmode$
 	if (cnt<11) then //+2 symbols for cr/lf
@@ -156,22 +151,22 @@ function ModeCheck(byval buf$,cnt)
 					Mode=DataMode
 					UartData$=""
 					sendmode$="DATAMODE\n"
-					exitfunc 1
 				else 
 					UartData$=""
 					sendmode$="NO_CONN\n"
-					exitfunc 1
 				endif
+				PrintAny(sendmode$)
+				exitfunc 1
 			endif
 		else
 			if (StrPos(buf$,CmndModeStr$,0)!=-1) then 
 				Mode=CmndMode
 				UartData$=""
 				sendmode$="CMNDMODE\n"
+				PrintAny(sendmode$)
 				exitfunc 1
 			endif
 		endif
-		PrintAny(sendmode$)
 	endif
 endfunc 0
 
@@ -197,39 +192,14 @@ endsub
 
 // Commands parser
 //==============================================================================
-sub CmndParsing(byval data$)
+sub CmndParsing(udata$)
 	dim sendcmnd$
-	rc=ExtractStrToken(data$,temp$)
+	rc=ExtractStrToken(udata$,temp$)
 	for temp=0 to NumCmnds-1
 		if (StrCmp(temp$,CmndsTable$[temp])==0) then : CmdNum=temp : break
 		else : CmdNum=-1
 		endif
 	next
-	select checkstate
-		case 0
-			temp=StrPos(UartData$,DeviceTypeCmnd$,0)
-			//print UartData$;"--";temp;"\n"
-			if (temp!=-1) then
-				StrShiftLeft(UartData$,temp+24)
-				//print UartData$;"\n"
-				if (StrPos(UartData$,ddim$,0)!=-1) then : DevName$="DDIM_" : checkstate=1 : endif
-				if (StrPos(UartData$,du$,0)!=-1) then : DevName$="DU_" : checkstate=1 : endif
-				if (StrPos(UartData$,siddos3m$,0)!=-1) then : DevName$="SIDDOSA3M_" : checkstate=1 : endif
-			endif
-		case 1
-			temp=StrPos(UartData$,DeviceIdCmnd$,0)
-			//print UartData$;"--";DeviceIdCmnd$;"--";temp;"\n"
-			if (temp!=-1) then
-				StrShiftLeft(UartData$,temp+24)
-				temp$=Left$(UartData$,2)
-				sprint #data$,DevName$;strhex2bin(temp$,0)
-				//print data$;"\n"
-				//DevName$=DevName$+strhex2bin(temp$,0)
-				checkstate=2
-				CmdNum=1
-			endif
-		case else
-	endselect
 	select CmdNum
 		case ready
 			printflag=1
@@ -243,7 +213,7 @@ sub CmndParsing(byval data$)
 			// sendcmnd$=sendcmnd$+"\r\n"
 			break
 		case nameset
-			rc=ExtractStrToken(data$,temp$)
+			rc=ExtractStrToken(udata$,temp$)
 			DevName$=temp$
 			rc=BleStopAdverts()
 			AdvertInit(2)
@@ -251,13 +221,13 @@ sub CmndParsing(byval data$)
 			sendcmnd$="NAME_SUCCS\n"
 			break
 		case uartset
-			rc=ExtractIntToken(data$,temp)
+			rc=ExtractIntToken(udata$,temp)
 			UartSw(0)
 			rc = UartOpen(temp,U_BUF,U_BUF,"CN81H")
 			if rc==0 then : sendcmnd$="U_SUCCS\n" : endif
 			break
 		case physet
-			rc=ExtractIntToken(data$,temp)
+			rc=ExtractIntToken(udata$,temp)
 			dim HIGH_BANDWIDTH
 			select temp
 				case 1
@@ -280,7 +250,7 @@ sub CmndParsing(byval data$)
 			if temp==0 then : sendcmnd$="PHY_SUCCS\n" : endif
 			break
 		case power
-			rc=ExtractIntToken(data$,BLE_TX_POWER)
+			rc=ExtractIntToken(udata$,BLE_TX_POWER)
 			rc = BleTxPowerSet(BLE_TX_POWER)
 			if rc==0 then : sendcmnd$="PWR_SUCCS\n" : endif
 			break
@@ -300,6 +270,33 @@ sub CmndParsing(byval data$)
 	PrintAny(sendcmnd$)
 endsub
 
+// Parsing device answers
+//==============================================================================
+function DeviceStateParsing()
+	dim uhex$
+	uhex$=strhexize$(UartData$)
+	select checkstate
+		case 0
+			temp=StrPos(uhex$,DeviceTypeCmnd$,0)
+			if (temp!=-1) then
+				StrShiftLeft(uhex$,temp+24)
+				if (StrPos(uhex$,ddim$,0)!=-1) then : DevName$="DDIM_" : checkstate=1 : endif
+				if (StrPos(uhex$,du$,0)!=-1) then : DevName$="DU_" : checkstate=1 : endif
+				if (StrPos(uhex$,siddos3m$,0)!=-1) then : DevName$="SIDDOSA3M_" : checkstate=1 : endif
+				exitfunc 1
+			endif
+		case 1
+			temp=StrPos(uhex$,DeviceIdCmnd$,0)
+			if (temp!=-1) then
+				StrShiftLeft(uhex$,temp+24)
+				temp$=Left$(uhex$,2)
+				sprint #UartData$,"nameset ";DevName$;strhex2bin(temp$,0)
+				checkstate=2
+			endif
+		case else
+	endselect
+endfunc 0
+
 // EVUARTRX - Function handler for UART data receive
 //==============================================================================
 function HndlrUartRx()
@@ -316,10 +313,11 @@ function HndlrBufferedUart()
 		else
 			select Mode
 				case DataMode
-					if BufferState == 0 then : rc=SendToBle(1) : endif
+					rc=SendToBle(1,UartData$)
 					break
 				case CmndMode
-					CmndParsing(UartData$)
+					rc=DeviceStateParsing()
+					if rc==0 then : CmndParsing(UartData$) : endif
 					UartData$=""
 					break
 				case else
@@ -331,29 +329,24 @@ endfunc 1
 // EVNOTIFYBUF - Notification buffer was emptied
 //==============================================================================
 function HndlrNtfyBuf()
-    if BufferState == 1 then
-        BufferState = 0
-        rc=SendToBle(2)
-    else
-		rc=SendToBle(3)
-    endif
+	rc=SendToBle(2,UartData$)
 endfunc 1
 
 // EVCHARVALUE - Handler for characteristic value written
 //==============================================================================
 function HndlrCharValue(nConnHandle, charHandle, offset, len, BYVAL Rd$ AS STRING)
-	//print " CharHandle-";charHandle;"\n"
     if charHandle == RXchar then
 		TimerStart(0,180000,0)
-		select Mode
-			case DataMode
-				if (ModeCheck(Rd$,len)==0) then : print Rd$ : endif
-			case CmndMode
-				if (ModeCheck(Rd$,len)==0) then : CmndParsing(Rd$) : endif
-			case else
-		endselect
-		//UartData$=Rd$
-		//rc=HndlrUartRx()
+		if (ModeCheck(Rd$,len)!=0) then : exitfunc 1
+		else
+			select Mode
+				case DataMode
+					print Rd$
+				case CmndMode
+					CmndParsing(Rd$)
+				case else
+			endselect
+		endif
     endif
 endfunc 1
 
@@ -440,6 +433,7 @@ function HndlrBleMsg(nMsgId, nCtx)
 		ConnectionID = 0
 		Mode=CmndMode
 		offstate=1
+		TimerCancel(2)
 		TimerStart(0,5000,0)
 		break
     case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
