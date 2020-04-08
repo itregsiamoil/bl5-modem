@@ -42,20 +42,31 @@ dim Company$:Company$=					"ТНПВО СИАМ"
 dim Addr$:Addr$=""
 #set $cmpif,0x00 //debug 00-off, FF-on
 
-dim CmdNum, printflag, offstate, checkstate
+dim CmdNum, printflag, offstate, checkstate, resetcnt
 dim debsw:debsw=0
 dim CmndModeStr$:CmndModeStr$="letmeout"
 dim DataModeStr$:DataModeStr$="data"
 dim DeviceTypeCmnd$:DeviceTypeCmnd$="0D0A01010000000002009067"
 dim DeviceIdCmnd$:DeviceIdCmnd$="0D0A01010A0000000400936D"
-dim ddim$:ddim$="0114"
-dim siddos3m$:siddos3m$="0115"
-dim du$:du$="0113"
-dim dua$:dua$="0117"
+#define NumDev				6
+dim DeviceTypeTable$[NumDev]
+dim DeviceNameTable$[NumDev]
+DeviceTypeTable$[0]="0114"
+DeviceNameTable$[0]="DDIM2"
+DeviceTypeTable$[1]="0214"
+DeviceNameTable$[1]="SIDDOSA3M"
+DeviceTypeTable$[2]="0113"
+DeviceNameTable$[2]="DDIN2"
+DeviceTypeTable$[3]="0111"
+DeviceNameTable$[3]="DU"
+DeviceTypeTable$[4]="0115"
+DeviceNameTable$[4]="DUA"
+DeviceTypeTable$[5]="0117"
+DeviceNameTable$[5]="UMT"
 
 #define NumCmnds			8
 dim CmndsTable$[NumCmnds]
-#define ready				0
+#define modemready			0
 #define nameset				1
 #define uartset				2
 #define physet				3
@@ -63,7 +74,7 @@ dim CmndsTable$[NumCmnds]
 #define power				5
 #define debug				6
 #define resetfw				7
-CmndsTable$[ready]="ready"
+CmndsTable$[modemready]="modemready"
 CmndsTable$[nameset]="nameset"
 CmndsTable$[uartset]="uartset"
 CmndsTable$[physet]="physet"
