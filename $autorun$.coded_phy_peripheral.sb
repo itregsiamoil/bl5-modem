@@ -411,11 +411,11 @@ function DevCheck()
 			if resetcnt==10 then : reset(0) : endif
 			print strdehexize$(DeviceTypeCmnd$) //device type
 			resetcnt=resetcnt+1
-			TimerStart(2,450,0)
+			TimerStart(2,650,0)
 			break
 		case 1
 			print strdehexize$(DeviceIdCmnd$) //device id
-			TimerStart(2,450,0)
+			TimerStart(2,650,0)
 			break
 		case else
 	endselect
@@ -494,7 +494,7 @@ sub Init()
 	//temp$ = SYSINFO$(4)
 	//print "Device / Address "; strhexize$(temp$);"\n" : endif
 	TimerStart(0,160000,0)
-	TimerStart(2,450,0)
+	TimerStart(2,650,0)
 endsub
 Init()
 

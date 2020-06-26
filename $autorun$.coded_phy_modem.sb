@@ -99,7 +99,7 @@ function HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL 
         for temp=0 to device_addr_overall-1
 			if (hConn==conn_table[temp]) then
 				if AscOrHexSw==0 then : data$=strhexize$(data$) : endif
-				print Sep;integer.d'SendToDev;Sep;temp;Sep;nLength;Sep;data$;"\n" // Just print data that we got 
+				print StrBeg;Sep;integer.d'SendToDev;Sep;temp;Sep;nLength;Sep;data$;"\n" // Just print data that we got 
 				if (debsw==2) then
 					print "time=";GetTickCount()-LastTick;"\n"
 					LastTick=GetTickCount()
@@ -132,7 +132,7 @@ endsub
 // This handler is called when there is a scan attempt timeout
 //==============================================================================
 function HandlerBlrScanTimOut() as integer
-	print Sep;integer.d'StopScanDev;Sep;"Scanning stopped via timeout\n"
+	print StrBeg;Sep;integer.d'StopScanDev;Sep;"Scanning stopped via timeout\n"
 	CommandParser(2)
 endfunc 1
 
@@ -153,7 +153,7 @@ endfunc 1
 // EVBLE_CONN_TIMEOUT - BLE connection timed out
 //==============================================================================
 function HndlrConnTO()
-    print Sep;integer.d'ConnToDev;Sep;"Connection attempt timed out.\n"
+    print StrBeg;Sep;integer.d'ConnToDev;Sep;"Connection attempt timed out.\n"
 endfunc 1
 
 // EVATTRWRITE - Remote characteristic written
@@ -202,7 +202,7 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 	select nMsgId		
 		case BLE_EVBLEMSGID_CONNECT
 			ConnectionID = nCtx
-			print Sep;integer.d'ConnToDev;Sep;"Connectinon ";ConnectionID;" for dev №";integer.d'ad_from_table;" created\n"	
+			print StrBeg;Sep;integer.d'ConnToDev;Sep;"Connectinon ";ConnectionID;" for dev №";integer.d'ad_from_table;" created\n"	
 			conn_table[ad_from_table]=ConnectionID
 			conn_cnt=conn_cnt+1
 			ShowConnParms(ConnectionID)	
@@ -214,7 +214,7 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 			ConnectionID = nCtx
 			for temp=0 to device_addr_overall-1
 				if (ConnectionID==conn_table[temp]) then
-					print Sep;integer.d'DisConn;Sep;temp;Sep;"Disconnected!\n"
+					print StrBeg;Sep;integer.d'DisConn;Sep;temp;Sep;"Disconnected!\n"
 					conn_table[temp]=0
 					conn_cnt=conn_cnt-1
 					break

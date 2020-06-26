@@ -39,7 +39,7 @@ function str_to_id(buf$,cleaning)
 	temp=0
 	if (SepPos==-1) then 
 		temp=-1
-		print Sep;"Cmnd separator '";Sep;"' not found\n"
+		print StrBeg;Sep;"Cmnd separator '";Sep;"' not found\n"
 	else
 		input_param$=Left$(buf$,SepPos)
 		temp=strvaldec(input_param$)
@@ -65,21 +65,21 @@ function CheckConnId(cmnd,id)
 		if conn_table[id]>1 then
 			if cmnd==ConnToDev then		
 				temp=-1
-				print Sep;integer.d'ConnToDev;Sep;"Connection already exist\n"
+				print StrBeg;Sep;integer.d'ConnToDev;Sep;"Connection already exist ";id;"\n"
 			else : temp=id
 			endif
 		else
 			if cmnd==ConnToDev then
 				temp=1
-				print Sep;cmnd;Sep;"First connection\n"
+				print StrBeg;Sep;cmnd;Sep;"First connection\n"
 			else
 				temp=-1
-				print Sep;cmnd;Sep;"Connection id not exist in table\n"
+				print StrBeg;Sep;cmnd;Sep;"Connection id not exist in table ";id;"\n"
 			endif
 		endif
 	else
 		temp=-1
-		print Sep;cmnd;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
+		print StrBeg;Sep;cmnd;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
 	endif
 endfunc temp
 
@@ -95,10 +95,10 @@ function SendToBle(ConnId,data$)
 				StrShiftLeft(data$,nAttributeLength)
 				if (debsw==1) then : print Sep;"Succs send to char:";RXHandle;"\n" : endif
 			case 24614
-				print Sep;integer.d'SendToDev;Sep;"Connection Id not correct, rc=";integer.h'rc;"\n"
+				print StrBeg;Sep;integer.d'SendToDev;Sep;"Connection Id not correct, rc=";integer.h'rc;"\n"
 				exitfunc 2
 			case 24662
-				print Sep;integer.d'SendToDev;Sep;"Data to send is empty or not HEX, rc=";integer.h'rc;"\n"
+				print StrBeg;Sep;integer.d'SendToDev;Sep;"Data to send is empty or not HEX, rc=";integer.h'rc;"\n"
 				exitfunc 0
 			case else
 				BufferState = 1
@@ -258,7 +258,7 @@ function ParallelHandler()
 				if phy==BLE_1M_PHY then : phy$="BL4" : else : phy$="BL5" : endif
 				advpars_table$[advpars_cnt]=localname$+Sep+beacondev$
 				//sprint #advpars_table$[advpars_cnt],advpars_table$[advpars_cnt];integer.d'rsi
-				print Sep;integer.d'ScanDev;Sep;phy$;" device №";advpars_cnt;Sep; strhexize$(addr_table$[advpars_cnt])					
+				print StrBeg;Sep;integer.d'ScanDev;Sep;phy$;" device №";advpars_cnt;Sep; strhexize$(addr_table$[advpars_cnt])					
 				print Sep;advpars_table$[advpars_cnt];Sep;"RSSI=-";rsi;"\n"
 				type=0 : size=0 : advpars_cnt=advpars_cnt+1
 			endif
@@ -286,7 +286,7 @@ sub CommandParser(CmdNum)
 	select CmdNum
 		//-------------------------------------------------------------------------------
 		case Help
-			print Sep;integer.d'CmdNum;Sep;"List of supported commands:\n"
+			print StrBeg;Sep;integer.d'CmdNum;Sep;"List of supported commands:\n"
 			for temp=0 to NumCmnds-1 : print " (";temp;Sep;HelpTable$[temp];"\n" : next
 			break
 		//-------------------------------------------------------------------------------
@@ -305,11 +305,11 @@ sub CommandParser(CmdNum)
 			if BLE_PHY==BLE_CODED_PHY then : sphy=2 : else : sphy=1 : endif
 			rc = BleScanStartEx(time_to_scan,sphy,"",0)
 			if rc == 0 then
-				print Sep;integer.d'ScanDev;Sep;"Scan started\n"
+				print StrBeg;Sep;integer.d'ScanDev;Sep;"Scan started\n"
 				ParalHandlWork=1
 				TimerStart(0,500,1)
 			else 
-				print Sep;integer.d'ScanDev;Sep;"Scan failed with error: ";integer.h'rc;"\n"
+				print StrBeg;Sep;integer.d'ScanDev;Sep;"Scan failed with error: ";integer.h'rc;"\n"
 			endif
 			break
 		//-------------------------------------------------------------------------------
@@ -318,13 +318,13 @@ sub CommandParser(CmdNum)
 			TimerCancel(0)
 			advpars_cnt=0
 			if (SysInfo(2016)!=1)||(SysInfo(2016)!=24) THEN 
-				PRINT Sep;integer.d'StopScanDev;Sep;"Scan stopped\n"
+				print StrBeg;Sep;integer.d'StopScanDev;Sep;"Scan stopped\n"
 				rc = BleScanFlush()
 			endif
-			print Sep;integer.d'StopScanDev;Sep;dev_cnt;" device in table: \n"
+			print StrBeg;Sep;integer.d'StopScanDev;Sep;dev_cnt;" device in table: \n"
 			for temp=0 to device_addr_overall-1
 				if (strlen(addr_table$[temp])==0) then : break : endif
-				print Sep;integer.d'StopScanDev;Sep;temp;Sep; strhexize$(addr_table$[temp]);Sep;advpars_table$[temp];Sep;"MSGS=";msg_cnt[temp];"\n"
+				print StrBeg;Sep;integer.d'StopScanDev;Sep;temp;Sep; strhexize$(addr_table$[temp]);Sep;advpars_table$[temp];Sep;"MSGS=";msg_cnt[temp];"\n"
 			next
 			break
 		//-------------------------------------------------------------------------------
@@ -332,11 +332,11 @@ sub CommandParser(CmdNum)
 			ad_from_table=str_to_id(urx$,1)
 			if ad_from_table==-1 then : break : endif
 			if ad_from_table>device_addr_overall then
-				print Sep;integer.d'ConnToDev;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
+				print StrBeg;Sep;integer.d'ConnToDev;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
 				break
 			endif
 			if strlen(addr_table$[ad_from_table])<1 then
-				print Sep;integer.d'ConnToDev;Sep;"Address id not exist in table\n"
+				print StrBeg;Sep;integer.d'ConnToDev;Sep;"Address id not exist in table\n"
 				break
 			else
 				rc=CheckConnId(ConnToDev,ad_from_table)
@@ -345,9 +345,9 @@ sub CommandParser(CmdNum)
 					if BLE_PHY==BLE_CODED_PHY then : cphy=1 : else : cphy=0 : endif
 					rc = BleConnectExtended(addr_table$[ad_from_table],5000,minConnInterval,maxConnInterval,5000000,cphy,0)
 					if rc == 0 then
-						print Sep;integer.d'ConnToDev;Sep;"Connecting to ";strhexize$(addr_table$[ad_from_table]);" ...\n"
+						print StrBeg;Sep;integer.d'ConnToDev;Sep;"Connecting to ";strhexize$(addr_table$[ad_from_table]);" ...\n"
 					else
-						print Sep;integer.d'ConnToDev;Sep;"Unable to connect, error: ";integer.h'rc;"\n"
+						print StrBeg;Sep;integer.d'ConnToDev;Sep;"Unable to connect, error: ";integer.h'rc;"\n"
 					endif
 				endif
 			endif
@@ -370,7 +370,7 @@ sub CommandParser(CmdNum)
 				svc_cnt=0
 				char_cnt=0
 				desc_cnt=0
-				print Sep;integer.d'ScanSvcChrDesc;Sep;"Start scanning services and chars:\n"
+				print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"Start scanning services and chars:\n"
 				rc=BleDiscServiceFirst(conn_table(CurrConnId),0,0)
 				if rc==0 then : WAITEVENT : endif
 				rc=BleDiscCharFirst(conn_table(CurrConnId),0,0,65535)
@@ -392,9 +392,9 @@ sub CommandParser(CmdNum)
 							if rc==0 then : WAITEVENT : endif
 						endif
 					next
-					print Sep;integer.d'ScanSvcChrDesc;Sep;"All notify CCCD enabled\n"
+					print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"All notify CCCD enabled\n"
 				endif
-				print Sep;integer.d'ScanSvcChrDesc;Sep;"Services/characteristics/descriptors count:";svc_cnt;"/";char_cnt;"/";desc_cnt;"\n"
+				print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"Services/characteristics/descriptors count:";svc_cnt;"/";char_cnt;"/";desc_cnt;"\n"
 				for temp=0 to svc_cnt-1
 					print svc_table$(temp);"\n"
 				next
@@ -418,7 +418,7 @@ sub CommandParser(CmdNum)
 					if rc==0 then : WAITEVENT : endif
 					print "\n"
 				next
-				print Sep;integer.d'ScanSvcChrDesc;Sep;"All services/characteristics/descriptors finded\n"
+				print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"All services/characteristics/descriptors finded\n"
 			endif
 			break
 		//-------------------------------------------------------------------------------
@@ -511,8 +511,8 @@ sub CommandParser(CmdNum)
 			rc=CheckConnId(DisConn,CurrConnId)
 			if rc>-1 then
 				rc = BleDisconnect(conn_table(CurrConnId))
-				if rc==0 then : print Sep;integer.d'DisConn;Sep;"Close conncection: ";conn_table(CurrConnId);"\n"
-				else : print Sep;integer.d'DisConn;Sep;"Unable to close conncection, error: ";integer.h'rc;"\n"
+				if rc==0 then : print StrBeg;Sep;integer.d'DisConn;Sep;"Close conncection: ";conn_table(CurrConnId);"\n"
+				else : print StrBeg;Sep;integer.d'DisConn;Sep;"Unable to close conncection, error: ";integer.h'rc;"\n"
 				endif
 			endif
 			break
@@ -714,6 +714,6 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case else
-			PRINT Sep;"Unknw cmnd. HEXECHO=";strhexize$(urx$);"\n"
+			PRINT StrBeg;Sep;"Unknw cmnd. HEXECHO=";strhexize$(urx$);"\n"
 	endselect
 endsub	
