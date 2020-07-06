@@ -23,9 +23,9 @@ sub ServiceInit()
     temp$ = RXUUID
     //temp = BleHandleUuidSibling(BaseUUID, temp)
     rc = BleCharNew(8, BleHandleUuid128(temp$), mdVal, 0, 0)
-	temp=BleAttrMetadata(1,0,nAttributeLength,1,rc)
-	temp$="RX data"
-	rc=BleCharDescUserDesc(temp$,temp)
+	//temp=BleAttrMetadata(1,0,nAttributeLength,1,rc)
+	//temp$="RX data"
+	//rc=BleCharDescUserDesc(temp$,temp)
     rc = BleCharCommit(svcID, s$, RXchar)
     //Create the TX characteristic
     mdVal = BleAttrMetadata(0,0,nAttributeLength,1,rc)
@@ -33,9 +33,9 @@ sub ServiceInit()
     temp$ = TXUUID
     //temp = BleHandleUuidSibling(BaseUUID, temp)
     rc = BleCharNew(16, BleHandleUuid128(temp$), mdVal, mdCccd, 0)
-	temp=BleAttrMetadata(1,0,nAttributeLength,1,rc)
-	temp$="TX data"
-	rc=BleCharDescUserDesc(temp$,temp)
+	//temp=BleAttrMetadata(1,0,nAttributeLength,1,rc)
+	//temp$="TX data"
+	//rc=BleCharDescUserDesc(temp$,temp)
     rc = BleCharCommit(svcID, s$, TXchar)
     rc = BleServiceCommit(svcID)
 endsub
@@ -438,6 +438,7 @@ endsub
 // Function to handle Ble event messages
 //------------------------------------------------------------------------------
 function HndlrBleMsg(nMsgId, nCtx)
+	dim sendmsg$
     select nMsgId
     case BLE_EVBLEMSGID_CONNECT
 		UartSw(1)
@@ -459,6 +460,7 @@ function HndlrBleMsg(nMsgId, nCtx)
     case BLE_EVBLEMSGID_CONN_PARMS_UPDATE
         if (debsw==1) then : ShowConnParms() : endif
     case else
+		if (debsw==1) then : print "BLEMSG:";nMsgId;"/";nCtx;"\n" : endif
     endselect
 endfunc 1
 
@@ -479,6 +481,12 @@ function EnableHighBandwidth()
 		Reset(0)		
     endif
 endfunc 0
+
+// Disconnection handler
+//------------------------------------------------------------------------------
+function DisconHandler(BYVAL hConn AS INTEGER, BYVAL nRsn AS INTEGER) AS INTEGER
+	if (debsw==1) then : print "DISC:";hConn;"/";nRsn;"\n" : endif
+endfunc 1
 
 // Initialization
 //******************************************************************************
@@ -501,6 +509,7 @@ Init()
 // UART events
 OnEvent EVUARTRX			call HndlrUartRx
 // Generic BLE events
+OnEvent EVDISCON			call DisconHandler
 OnEvent EVBLEMSG			call HndlrBleMsg
 OnEvent EVCHARVALUE			call HndlrCharValue         // Used if AT+CFG 213=1
 OnEvent EVNOTIFYBUF			call HndlrNtfyBuf
