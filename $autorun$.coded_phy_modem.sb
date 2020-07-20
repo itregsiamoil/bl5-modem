@@ -35,7 +35,7 @@ sub AdvertRecieve (ad$,dta$,rsi,advtype,advchan,ndisc,mdata$,phy)
 	endif
 	if dev_cnt==device_addr_overall then		
 		print Sep;integer.d'StopScanDev;Sep;"Scanning stopped via max number of device foud\n"
-		CommandParser(2)
+		CommandParser(StopScanDev)
 	endif
 endsub
 
@@ -68,8 +68,8 @@ function HndlrNtfyBuf()
         BufferState = 0
         do : rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
 		until rc==0
-    // ELSE
-        // rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
+    //ELSE
+        //rc=SendToBle(conn_table(PrevConnId),data_table$[PrevConnId])
     endif
 	if (debsw==1) then : print Sep;"Client: data rcv &  buf empty\n" : endif
 	if SendTestFlag==1 then
@@ -133,7 +133,7 @@ endsub
 //==============================================================================
 function HandlerBlrScanTimOut() as integer
 	print StrBeg;Sep;integer.d'StopScanDev;Sep;"Scanning stopped via timeout\n"
-	CommandParser(2)
+	CommandParser(StopScanDev)
 endfunc 1
 
 // EVBLE_PHY_UPDATED - This handler is called when the BLE PHY is changed
@@ -202,7 +202,7 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 	select nMsgId		
 		case BLE_EVBLEMSGID_CONNECT
 			ConnectionID = nCtx
-			print StrBeg;Sep;integer.d'ConnToDev;Sep;"Connectinon ";ConnectionID;" for dev №";integer.d'ad_from_table;" created\n"	
+			print StrBeg;Sep;integer.d'ConnToDev;Sep;"Connectinon ";ConnectionID;" for dev N";integer.d'ad_from_table;" created\n"	
 			conn_table[ad_from_table]=ConnectionID
 			conn_cnt=conn_cnt+1
 			ShowConnParms(ConnectionID)	
@@ -210,6 +210,8 @@ function HandlerBleMsg(BYVAL nMsgId AS INTEGER, BYVAL nCtx AS INTEGER) as intege
 			rc = BLEGATTCWRITE(ConnectionID, TXCCCDHandle, temp$)
 			if rc==0 then : WAITEVENT : endif
 			rc = BleSetCurConnParms(ConnectionID,minConnInterval,10000,5000000,0)
+			ConnCHRDES=1
+			CommandParser(ScanSvcChrDesc)
 		case BLE_EVBLEMSGID_DISCONNECT
 			ConnectionID = nCtx
 			for temp=0 to device_addr_overall-1

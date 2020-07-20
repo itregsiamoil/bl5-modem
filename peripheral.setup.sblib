@@ -48,7 +48,7 @@ dim CmndModeStr$:CmndModeStr$="letmeout"
 dim DataModeStr$:DataModeStr$="data"
 dim DeviceTypeCmnd$:DeviceTypeCmnd$="0D0A01010000000002009067"
 dim DeviceIdCmnd$:DeviceIdCmnd$="0D0A01010A0000000400936D"
-#define NumDev				6
+#define NumDev				7
 dim DeviceTypeTable$[NumDev]
 dim DeviceNameTable$[NumDev]
 DeviceTypeTable$[0]="0114"
@@ -62,7 +62,9 @@ DeviceNameTable$[3]="DU"
 DeviceTypeTable$[4]="0115"
 DeviceNameTable$[4]="DUA"
 DeviceTypeTable$[5]="0117"
-DeviceNameTable$[5]="UMT"
+DeviceNameTable$[5]="UM02GSM"
+DeviceTypeTable$[6]="0017"
+DeviceNameTable$[6]="UMT02"
 
 #define NumCmnds			8
 dim CmndsTable$[NumCmnds]
