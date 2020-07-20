@@ -31,15 +31,30 @@ HelpTable$[ResetMdm]=") reset modem"
 
 // Parsing command parametr
 //==============================================================================
+sub print_any(cmnd,str$,intnum)
+	if intnum!=NotNum then
+		print StrBeg;Sep;integer.d'cmnd;Sep;str$;integer.d'intnum;"\n"
+	else : print StrBeg;Sep;integer.d'cmnd;Sep;str$;"\n"
+	endif
+endsub
+
+// Parsing command parametr
+//==============================================================================
 function str_to_id(buf$,cleaning)
 	dim input_param$,SepPos,sepstr$
-	if (debsw==1) then : print "Buf:";buf$;"\n" : endif
+	if (debsw==1) then
+		//print "Buf:";buf$;"\n"
+		sendstr$="Buf:"+buf$
+		print_any(0,sendstr$,NotNum)
+	endif
 	sepstr$=Sep
 	SepPos=StrPos(buf$,sepstr$,0)
 	temp=0
 	if (SepPos==-1) then 
 		temp=-1
-		print StrBeg;Sep;"Cmnd separator '";Sep;"' not found\n"
+		//print StrBeg;Sep;"Cmnd separator '";Sep;"' not found\n"
+		sendstr$="Cmnd separator '"+Sep+"' not found"
+		print_any(0,sendstr$,NotNum)
 	else
 		input_param$=Left$(buf$,SepPos)
 		temp=strvaldec(input_param$)
@@ -65,21 +80,31 @@ function CheckConnId(cmnd,id)
 		if conn_table[id]>1 then
 			if cmnd==ConnToDev then		
 				temp=-1
-				print StrBeg;Sep;integer.d'ConnToDev;Sep;"Connection already exist ";id;"\n"
+				sendstr$="Connection already exist "
+				print_any(cmnd,sendstr$,id)
+				//print StrBeg;Sep;integer.d'ConnToDev;Sep;"Connection already exist ";id;"\n"
 			else : temp=id
 			endif
 		else
 			if cmnd==ConnToDev then
 				temp=1
-				print StrBeg;Sep;cmnd;Sep;"First connection\n"
+				sendstr$="First connection "
+				//print StrBeg;Sep;cmnd;Sep;"First connection\n"
 			else
 				temp=-1
-				print StrBeg;Sep;cmnd;Sep;"Connection id not exist in table ";id;"\n"
+				sendstr$="Connection id not exist in table "
+				print_any(cmnd,sendstr$,id)
+				//print StrBeg;Sep;cmnd;Sep;"Connection id not exist in table ";id;"\n"
 			endif
 		endif
 	else
-		temp=-1
-		print StrBeg;Sep;cmnd;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
+		if id==99 then : temp=id
+		else
+			temp=-1
+			sendstr$="Id bigger then max: "
+			print_any(cmnd,sendstr$,device_addr_overall)
+			//print StrBeg;Sep;cmnd;Sep;"Id bigger then max: ";integer.d'device_addr_overall;"\n"
+		endif
 	endif
 endfunc temp
 
@@ -93,7 +118,11 @@ function SendToBle(ConnId,data$)
 		select rc
 			case 0
 				StrShiftLeft(data$,nAttributeLength)
-				if (debsw==1) then : print Sep;"Succs send to char:";RXHandle;"\n" : endif
+				if (debsw==1) then
+					sendstr$="Succs send to char:"
+					print_any(0,sendstr$,RXHandle)
+					//print Sep;"Succs send to char:";RXHandle;"\n"
+				endif
 			case 24614
 				print StrBeg;Sep;integer.d'SendToDev;Sep;"Connection Id not correct, rc=";integer.h'rc;"\n"
 				exitfunc 2
@@ -105,11 +134,19 @@ function SendToBle(ConnId,data$)
 				if (debsw==1) then : print Sep;"Ble send error! rc=";integer.h'rc;"\n" : endif
 		endselect
 	else 
-		if (debsw==1) then : print Sep;"Buf full\n" : endif
+		if (debsw==1) then
+			sendstr$="Buf full"
+			print_any(0,sendstr$,NotNum)
+			//print Sep;"Buf full\n"
+		endif
 		exitfunc 0 
 	endif
 	if strlen(data$)==0 then
-		if (debsw==1) then : print Sep;"Buff conn: ";ConnId;" empty\n" : endif
+		if (debsw==1) then
+			sendstr$="Buff empty, conn: "
+			print_any(0,sendstr$,ConnId)
+			//print Sep;"Buff empty, conn: ";ConnId;"\n"
+		endif
 		exitfunc 0 
 	endif
 endfunc 1
@@ -171,6 +208,9 @@ function HandlerCharDisc(cHndl,cUuid,cProp,hVal,isUuid) as integer
 		endselect
 		sprint #uuid$,integer.h'cUuid
 		StrShiftLeft(uuid$,4)
+		if strcmp(uuid$,RxSiam)==0 then : RxHandle=hVal //: print "RxSiam finded\n"
+		else : if strcmp(uuid$,TxSiam)==0 then : TxHandle=hVal : endif//: print "TxSiam finded\n"
+		endif
 		sprint #temp$,"CHR:";uuid$;"(";prop$;")";" H:";hVal
 		chr_table$(char_cnt)=temp$
 		char_cnt=char_cnt+1
@@ -258,7 +298,7 @@ function ParallelHandler()
 				if phy==BLE_1M_PHY then : phy$="BL4" : else : phy$="BL5" : endif
 				advpars_table$[advpars_cnt]=localname$+Sep+beacondev$
 				//sprint #advpars_table$[advpars_cnt],advpars_table$[advpars_cnt];integer.d'rsi
-				print StrBeg;Sep;integer.d'ScanDev;Sep;phy$;" device №";advpars_cnt;Sep; strhexize$(addr_table$[advpars_cnt])					
+				print StrBeg;Sep;integer.d'ScanDev;Sep;phy$;" device N";advpars_cnt;Sep; strhexize$(addr_table$[advpars_cnt])					
 				print Sep;advpars_table$[advpars_cnt];Sep;"RSSI=-";rsi;"\n"
 				type=0 : size=0 : advpars_cnt=advpars_cnt+1
 			endif
@@ -354,8 +394,11 @@ sub CommandParser(CmdNum)
 			break
 		//-------------------------------------------------------------------------------
 		case ScanSvcChrDesc
-			CurrConnId=str_to_id(urx$,1)
-			if CurrConnId==-1 then : break : endif
+			if ConnCHRDES==1 then : CurrConnId=ad_from_table
+			else 
+				CurrConnId=str_to_id(urx$,1)
+				if CurrConnId==-1 then : break : endif
+			endif
 			rc=CheckConnId(ScanSvcChrDesc,CurrConnId)
 			if rc>-1 then
 				for temp=0 to svc_cnt-1
@@ -370,7 +413,9 @@ sub CommandParser(CmdNum)
 				svc_cnt=0
 				char_cnt=0
 				desc_cnt=0
-				print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"Start scanning services and chars:\n"
+				if ConnCHRDES!=1 then
+					print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"Start scanning services and chars:\n"
+				endif
 				rc=BleDiscServiceFirst(conn_table(CurrConnId),0,0)
 				if rc==0 then : WAITEVENT : endif
 				rc=BleDiscCharFirst(conn_table(CurrConnId),0,0,65535)
@@ -392,33 +437,38 @@ sub CommandParser(CmdNum)
 							if rc==0 then : WAITEVENT : endif
 						endif
 					next
-					print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"All notify CCCD enabled\n"
-				endif
-				print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"Services/characteristics/descriptors count:";svc_cnt;"/";char_cnt;"/";desc_cnt;"\n"
-				for temp=0 to svc_cnt-1
-					print svc_table$(temp);"\n"
-				next
-				for temp=0 to char_cnt-1
-					print chr_table$(temp);
-					temp$="rd"
-					rc=StrPos(chr_table$(temp),temp$,7)
-					if rc>0 then 
-						rc=find_handler(chr_table$(temp))
-						rc = BleGattcRead(conn_table(CurrConnId),rc,0)
-						if rc==0 then : WAITEVENT
-						else : print " VAL:";"cant read from hndl(";integer.h'rc;")"
-						endif
+					if ConnCHRDES!=1 then
+						print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"All notify CCCD enabled\n"
 					endif
-					print "\n"
-				next
-				for temp=0 to desc_cnt-1
-					print desc_table$(temp)
-					rc=find_handler(desc_table$(temp))
-					rc = BleGattcRead(conn_table(CurrConnId),rc,0)
-					if rc==0 then : WAITEVENT : endif
-					print "\n"
-				next
-				print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"All services/characteristics/descriptors finded\n"
+				endif
+				if ConnCHRDES!=1 then
+					print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"Services/characteristics/descriptors count:";svc_cnt;"/";char_cnt;"/";desc_cnt;"\n"
+					for temp=0 to svc_cnt-1
+						print svc_table$(temp);"\n"
+					next
+					for temp=0 to char_cnt-1
+						print chr_table$(temp);
+						temp$="rd"
+						rc=StrPos(chr_table$(temp),temp$,7)
+						if rc>0 then 
+							rc=find_handler(chr_table$(temp))
+							rc = BleGattcRead(conn_table(CurrConnId),rc,0)
+							if rc==0 then : WAITEVENT
+							else : print " VAL:";"cant read from hndl(";integer.h'rc;")"
+							endif
+						endif
+						print "\n"
+					next
+					for temp=0 to desc_cnt-1
+						print desc_table$(temp)
+						rc=find_handler(desc_table$(temp))
+						rc = BleGattcRead(conn_table(CurrConnId),rc,0)
+						if rc==0 then : WAITEVENT : endif
+						print "\n"
+					next
+					print StrBeg;Sep;integer.d'ScanSvcChrDesc;Sep;"All services/characteristics/descriptors finded\n"
+				endif
+				ConnCHRDES=0
 			endif
 			break
 		//-------------------------------------------------------------------------------
@@ -509,6 +559,12 @@ sub CommandParser(CmdNum)
 			CurrConnId=str_to_id(urx$,1)
 			if CurrConnId==-1 then : break : endif
 			rc=CheckConnId(DisConn,CurrConnId)
+			if rc==99 then
+				for temp=0 to device_addr_overall-1
+					if conn_table[temp]>0 then : rc = BleDisconnect(conn_table(temp)) : endif
+				next
+				break
+			endif
 			if rc>-1 then
 				rc = BleDisconnect(conn_table(CurrConnId))
 				if rc==0 then : print StrBeg;Sep;integer.d'DisConn;Sep;"Close conncection: ";conn_table(CurrConnId);"\n"
@@ -529,7 +585,19 @@ sub CommandParser(CmdNum)
 						BLE_PHY=BLE_1M_PHY
 						SCAN_TYPE=BLE_NORMAL_SCANNING
 						HIGH_BANDWIDTH=0
-						print "BL4 1M mode\n" : break
+						print "BL4 1M mode\n"
+						for temp=0 to device_addr_overall-1
+							if conn_table[temp]==0 then //reinit all tables except connected devices
+								addr_table$[temp]=""
+								data_table$[temp]=""
+								adv_table$[temp]=""
+								advpars_table$[temp]=""
+								dev_cnt=0
+							else : rc = BleDisconnect(conn_table(temp))
+							endif
+							msg_cnt[temp]=0
+						next
+						break
 					case 2
 						BLE_PHY=BLE_2M_PHY
 						print "BL5 2M mode\n" : break
@@ -537,7 +605,19 @@ sub CommandParser(CmdNum)
 						BLE_PHY=BLE_CODED_PHY
 						SCAN_TYPE=BLE_EXTENDED_SCANNING
 						HIGH_BANDWIDTH=1
-						print "BL5 CODED mode\n" : break
+						print "BL5 CODED mode\n" 
+						for temp=0 to device_addr_overall-1
+							if conn_table[temp]==0 then //reinit all tables except connected devices
+								addr_table$[temp]=""
+								data_table$[temp]=""
+								adv_table$[temp]=""
+								advpars_table$[temp]=""
+								dev_cnt=0
+							else : rc = BleDisconnect(conn_table(temp))
+							endif
+							msg_cnt[temp]=0
+						next
+						break
 					case else
 						print "available states BL4 1M(1),BL5 2M(2),BL5 CODED(4)\n"
 				endselect
