@@ -4,7 +4,7 @@
 //------------------------------------------------------------------------------
 sub AssertRC(rc, tag)
     if (rc != 0) then
-		if (debsw==1) then : print "ERROR_";integer.h'rc;"_TAG_";tag;"\n" : endif
+		if (debsw==1) then : print "ERROR_"; integer.h'rc;"_TAG_";tag;"\n" : endif
     endif
 endsub
 
@@ -51,9 +51,9 @@ sub AdvertInit(flag)
 	if BLE_PHY==BLE_CODED_PHY then
 		//temp$=strdehexize$(LESupFutr$)
 		//rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType1,temp$) : AssertRC(rc,3)
-		temp$=strdehexize$(tag$)+Company$
+		temp$=strdehexize$(tag$) + Company$
 		rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,temp$) : AssertRC(rc,4)
-		temp$=strdehexize$(http$)+URI$
+		temp$=strdehexize$(http$) + URI$
 		rc=BleExtAdvRptAppendAD(adRpt$,GAPDataType2,temp$) : AssertRC(rc,5)
 		select flag
 			case 1 //create
@@ -118,13 +118,13 @@ function SendToBle(from,bdata$)
 			case 0
 				temp=strlen(blesend$)
 				StrShiftLeft(BleData$,temp)
-				if (debsw==1) then : print "SUCCS_SEND_N";from;"\n" : endif
+				if (debsw==1) then : print "SUCCS_SEND_N"; from;"\n" : endif
 			// case 24643
 				// if (debsw==1) then : print "Data to send is empty\n" : endif
 				// exitfunc 0
 				break
 			case else
-				if (debsw==1) then : print "SEND_ERROR_";integer.h'rc;" msg-";blesend$;"\n" : endif
+				if (debsw==1) then : print "SEND_ERROR_"; integer.h'rc;" msg-";blesend$;"\n" : endif
 				break
 		endselect
 	endif
@@ -272,7 +272,7 @@ sub CmndParsing(num,udata$)
 		case resetfw
 			reset(0)
 		case else
-			sendcmnd$="UNKNW_CMND_"+temp$+"\n"
+			sendcmnd$="UNKNW_CMND_" + temp$ + "\n"
 	endselect
 	PrintAny(sendcmnd$)
 endsub

@@ -101,7 +101,7 @@ function HndlrAttrNotifyEx(BYVAL hConn AS INTEGER, BYVAL hAttr AS INTEGER,BYVAL 
 				if AscOrHexSw==0 then : data$=strhexize$(data$) : endif
 				print StrBeg;Sep;integer.d'SendToDev;Sep;temp;Sep;nLength;Sep;data$;"\n" // Just print data that we got 
 				if (debsw==2) then
-					print "time=";GetTickCount()-LastTick;"\n"
+					print "time="; GetTickCount() - LastTick;"\n"
 					LastTick=GetTickCount()
 				endif
 				break
@@ -139,13 +139,13 @@ endfunc 1
 // EVBLE_PHY_UPDATED - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyChngd(BYVAL hConn, BYVAL nStatus, BYVAL PhyTx, BYVAL PhyRx)
-    if (debsw==1) then : print Sep;"PHY Changed! Status: ";integer.h' nStatus;" PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
+    if (debsw==1) then : print Sep;"PHY Changed! Status: "; integer.h' nStatus;" PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
 endfunc 1
 
 // EVBLE_PHY_REQUEST - This handler is called when the BLE PHY is changed
 //==============================================================================
 function  HandlerPhyReq(BYVAL hConn, BYVAL PhyTx, BYVAL PhyRx)
-    if (debsw==1) then : print Sep;"PHY Request! PhyTx=";PhyTx;" PhyRx=";PhyRx;"\n" : endif
+    if (debsw==1) then : print Sep;"PHY Request! PhyTx="; PhyTx;" PhyRx="; PhyRx;"\n" : endif
     // Accept the PHY requested by the remote device
     rc = BlePhySet(hConn, PhyTx, PhyRx, 0)
 endfunc 1
