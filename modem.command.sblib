@@ -561,8 +561,11 @@ sub CommandParser(CmdNum)
 			rc=CheckConnId(DisConn,CurrConnId)
 			if rc==99 then
 				for temp=0 to device_addr_overall-1
-					if conn_table[temp]>0 then : rc = BleDisconnect(conn_table(temp)) : endif
+					if conn_table[temp]>0 then : 
+						rc = BleDisconnect(conn_table(temp)) : 
+					endif
 				next
+				print "Disconnected all\n"
 				break
 			endif
 			if rc>-1 then
@@ -660,10 +663,14 @@ sub CommandParser(CmdNum)
 						break
 					case 8
 						break
+					case 14
+						break
+					case 18
+						break
 					case else
 						temp=-10
 				endselect
-				if temp==-10 then : print "available states transmit power -8/-4/0/2/4/6/8\n"
+				if temp==-10 then : print "available states transmit power -8/-4/0/2/4/6/8/14/18\n"
 				else : temp = BleTxPowerSet(temp) : print SysInfo(2008);"dBm\n"
 				endif
 			else

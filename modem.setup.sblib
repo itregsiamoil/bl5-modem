@@ -1,6 +1,6 @@
 // Setup definitions
 //******************************************************************************
-#define TRANSMIT_POWER						8	//-40, -20, -16, -12, -8, -4, 0, 2, 4, 5, 6, 7, and 8 dBm.
+#define TRANSMIT_POWER						14	//-40, -20, -16, -12, -8, -4, 0, 2, 4, 5, 6, 7, 8, 14, 18 dBm.
 #define device_addr_overall					15
 #define time_to_scan 						20000	//ms
 #define scan_interval						300
@@ -20,7 +20,7 @@
 #define USE_STRING_IN_EVENTS                1	// 0: use EVATTRNOTIFY, 1: use EVATTRNOTIFYEX (See user manual)
 dim HIGH_BANDWIDTH:HIGH_BANDWIDTH=			1	// 0: medium bandwidth 1: high bandwidth
 dim SCAN_TYPE:SCAN_TYPE=					BLE_NORMAL_SCANNING
-dim BLE_PHY:BLE_PHY=						BLE_1M_PHY
+dim BLE_PHY:BLE_PHY=						BLE_CODED_PHY
 dim RXHandle:RxHandle=						16	//RX handle (MI-18,MO-16,RX-21,TX-23,MOCCCD-24)
 dim TXHandle:TXHandle=						18	//TX handle //Hardcoded GATT attributes of remote BL654
 dim TXCCCDHandle:TXCCCDHandle=				19	//TX CCCD handle
